@@ -1,0 +1,247 @@
+/*
+ * Design tokens — the single source for colour, spacing, type, layout and motion.
+ *
+ * Pages and components use the generated utilities (e.g. `text-income`,
+ * `bg-expense-muted`, `p-card`, `gap-section`, `max-w-content`,
+ * `amount-xl`) — never raw palette colours or ad-hoc pixel values.
+ *
+ * Colour contrast (light theme, text colour on --background / --card):
+ *   income  green-700   ≈ 5.0:1     expense red-700    ≈ 6.4:1
+ *   debt    orange-700  ≈ 5.2:1     warning yellow-700 ≈ 4.9:1
+ *   info    sky-700     ≈ 5.9:1     primary teal-700   ≈ 5.5:1
+ * All meet WCAG AA for normal text. Dark theme uses the -400 steps on near-black.
+ *
+ * Breakpoints (Tailwind defaults, documented here as the contract):
+ *   mobile        < 768px  (md)  compact header, bottom navigation + central "+", drawer menu
+ *   tablet   768–1023px   (md)  icon rail sidebar + top header, no bottom navigation
+ *   desktop 1024–1279px   (lg)  full sidebar with labels + top header
+ *   large       ≥ 1280px  (xl)  same as desktop; content capped at --container-content, wider gutters
+ */
+
+/* ------------------------------------------------------------------ */
+/* Semantic colour values                                              */
+/* ------------------------------------------------------------------ */
+
+:root {
+  /* Income — green */
+  --income: oklch(0.527 0.154 150.069);
+  --income-muted: oklch(0.982 0.018 155.826);
+  --income-foreground: oklch(0.985 0 0);
+
+  /* Expense — red */
+  --expense: oklch(0.505 0.213 27.518);
+  --expense-muted: oklch(0.971 0.013 17.38);
+  --expense-foreground: oklch(0.985 0 0);
+
+  /* Debt / payment — orange */
+  --debt: oklch(0.553 0.195 38.402);
+  --debt-muted: oklch(0.98 0.016 73.684);
+  --debt-foreground: oklch(0.985 0 0);
+
+  /* Warning — amber/yellow (kept distinct in hue from debt orange) */
+  --warning: oklch(0.554 0.135 66.442);
+  --warning-muted: oklch(0.987 0.026 102.212);
+  --warning-foreground: oklch(0.985 0 0);
+
+  /* Information — blue/cyan */
+  --info: oklch(0.5 0.134 242.749);
+  --info-muted: oklch(0.977 0.013 236.62);
+  --info-foreground: oklch(0.985 0 0);
+
+  /* Neutral amounts (balances, transfers) use --foreground; secondary text uses --muted-foreground. */
+  --neutral: oklch(0.269 0 0);
+  --neutral-muted: oklch(0.97 0 0);
+  --neutral-foreground: oklch(0.985 0 0);
+
+  /* Charts: semantic series first, then calm categorical colours. */
+  --chart-income: var(--income);
+  --chart-expense: var(--expense);
+  --chart-debt: var(--debt);
+  --chart-1: oklch(0.511 0.096 186.391); /* teal */
+  --chart-2: oklch(0.588 0.158 241.966); /* sky */
+  --chart-3: oklch(0.646 0.222 41.116); /* orange */
+  --chart-4: oklch(0.558 0.288 302.321); /* violet */
+  --chart-5: oklch(0.554 0.046 257.417); /* slate */
+
+  /* Financial amounts — the most prominent elements on screen (see @utility amount-* below). */
+  --amount-xl: 2rem; /* dashboard hero; 2.5rem from lg */
+  --amount-lg: 1.5rem; /* stat cards, amount input */
+  --amount-md: 1rem; /* list rows */
+  --amount-sm: 0.875rem; /* secondary figures */
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+}
+
+.dark {
+  --income: oklch(0.792 0.209 151.711);
+  --income-muted: oklch(0.527 0.154 150.069 / 18%);
+  --income-foreground: oklch(0.145 0 0);
+
+  --expense: oklch(0.704 0.191 22.216);
+  --expense-muted: oklch(0.577 0.245 27.325 / 18%);
+  --expense-foreground: oklch(0.145 0 0);
+
+  --debt: oklch(0.75 0.183 55.934);
+  --debt-muted: oklch(0.646 0.222 41.116 / 18%);
+  --debt-foreground: oklch(0.145 0 0);
+
+  --warning: oklch(0.852 0.199 91.936);
+  --warning-muted: oklch(0.681 0.162 75.834 / 18%);
+  --warning-foreground: oklch(0.145 0 0);
+
+  --info: oklch(0.746 0.16 232.661);
+  --info-muted: oklch(0.588 0.158 241.966 / 18%);
+  --info-foreground: oklch(0.145 0 0);
+
+  --neutral: oklch(0.922 0 0);
+  --neutral-muted: oklch(0.269 0 0);
+  --neutral-foreground: oklch(0.145 0 0);
+
+  --chart-1: oklch(0.777 0.152 181.912);
+  --chart-2: oklch(0.746 0.16 232.661);
+  --chart-3: oklch(0.75 0.183 55.934);
+  --chart-4: oklch(0.714 0.203 305.504);
+  --chart-5: oklch(0.704 0.04 256.788);
+}
+
+/* ------------------------------------------------------------------ */
+/* Tailwind theme: expose tokens as utilities                          */
+/* ------------------------------------------------------------------ */
+
+@theme inline {
+  --color-income: var(--income);
+  --color-income-muted: var(--income-muted);
+  --color-income-foreground: var(--income-foreground);
+  --color-expense: var(--expense);
+  --color-expense-muted: var(--expense-muted);
+  --color-expense-foreground: var(--expense-foreground);
+  --color-debt: var(--debt);
+  --color-debt-muted: var(--debt-muted);
+  --color-debt-foreground: var(--debt-foreground);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-muted: var(--info-muted);
+  --color-info-foreground: var(--info-foreground);
+  --color-neutral: var(--neutral);
+  --color-neutral-muted: var(--neutral-muted);
+  --color-neutral-foreground: var(--neutral-foreground);
+}
+
+@theme static {
+  /* Spacing — semantic names; responsive values are overridden below. */
+  --spacing-page-x: 1rem;
+  --spacing-page-y: 1rem;
+  --spacing-section: 1.5rem; /* between page sections */
+  --spacing-card: 1rem; /* card padding */
+  --spacing-stack: 0.75rem; /* between items in a group */
+  --spacing-inline: 0.5rem; /* icon ↔ label */
+  --spacing-touch: 2.75rem; /* 44px minimum touch target */
+  --spacing-header: 3.5rem;
+  --spacing-bottom-nav: 4rem;
+  --spacing-sidebar: 16rem;
+  --spacing-sidebar-rail: 4.5rem;
+
+  /* Readable widths */
+  --container-content: 72rem;
+  --container-form: 32rem;
+  --container-prose: 40rem;
+
+  /* Type: Thai needs taller line boxes for stacked vowels/tone marks. */
+  --text-xs--line-height: 1.5;
+  --text-sm--line-height: 1.55;
+  --text-base--line-height: 1.6;
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Layering */
+  --z-index-header: 30;
+  --z-index-bottom-nav: 40;
+}
+
+@media (width >= 48rem) {
+  :root {
+    --spacing-page-x: 1.5rem;
+    --spacing-page-y: 1.5rem;
+  }
+}
+
+@media (width >= 64rem) {
+  :root {
+    --spacing-page-x: 2rem;
+    --spacing-page-y: 2rem;
+    --spacing-section: 2rem;
+    --spacing-card: 1.25rem;
+    --amount-xl: 2.5rem;
+  }
+}
+
+@media (width >= 80rem) {
+  :root {
+    --spacing-page-x: 2.5rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Utilities                                                           */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Amount type scale. Named amount-* (not text-*) so class merging never
+ * confuses a font size with a text colour like text-income.
+ */
+@utility amount-xl {
+  font-size: var(--amount-xl);
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+@utility amount-lg {
+  font-size: var(--amount-lg);
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+@utility amount-md {
+  font-size: var(--amount-md);
+  line-height: 1.4;
+  font-weight: 600;
+}
+@utility amount-sm {
+  font-size: var(--amount-sm);
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+/* Numbers line up in columns and don't jiggle while typing. */
+@utility tabular-nums-money {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Consistent, clearly visible keyboard focus for custom controls. */
+@utility focus-ring {
+  outline: none;
+  &:focus-visible {
+    box-shadow:
+      0 0 0 2px var(--background),
+      0 0 0 4px var(--ring);
+  }
+}
+
+/* Respect the OS "reduce motion" setting everywhere. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
