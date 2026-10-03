@@ -8,7 +8,7 @@ import {
   createScheduledPaymentsRepository,
   createTransactionsRepository,
 } from '@/db/repositories'
-import { LATEST_SCHEMA_VERSION } from '@/db/schema'
+import { DATA_SCHEMA_VERSION } from '@/db/schema'
 import { accountBalances, debtSummary, monthTotals } from '@/domain/reporting'
 import { getMonthlyAnalytics } from '@/domain/analytics'
 import { getMonthlyBudgetSummary } from '@/domain/budget'
@@ -198,7 +198,7 @@ describe('creating a backup', () => {
       format: BACKUP_FORMAT,
       formatVersion: BACKUP_FORMAT_VERSION,
       appVersion: '0.1.0',
-      schemaVersion: LATEST_SCHEMA_VERSION,
+      schemaVersion: DATA_SCHEMA_VERSION,
       exportedAt: NOW,
       currency: 'THB',
       calendar: 'gregorian',
@@ -375,7 +375,7 @@ describe('validation rejects the whole file (and never writes)', () => {
     expect(
       rejectionOf(
         await tampered((b) => {
-          b.schemaVersion = LATEST_SCHEMA_VERSION + 1
+          b.schemaVersion = DATA_SCHEMA_VERSION + 1
         }),
       ),
     ).toBe('unsupported_version')

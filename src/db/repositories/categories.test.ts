@@ -7,8 +7,6 @@ const now = '2026-09-26T03:00:00.000Z'
 let database: FinanceDatabase
 let categories: ReturnType<typeof createCategoriesRepository>
 let n = 0
-let id = 0
-const newId = () => `cat-${++id}`
 
 beforeEach(() => {
   database = new FinanceDatabase(`categories-${++n}`)
@@ -68,8 +66,8 @@ describe('categories repository', () => {
   })
 
   it('the starter set is created once — asking again creates nothing', async () => {
-    expect(await categories.createStarterSet('expense', STARTER_EXPENSE_CATEGORIES, { now, newId })).toBe(STARTER_EXPENSE_CATEGORIES.length)
-    expect(await categories.createStarterSet('expense', STARTER_EXPENSE_CATEGORIES, { now, newId })).toBe(0)
+    expect(await categories.createStarterSet('expense', STARTER_EXPENSE_CATEGORIES, { now })).toBe(STARTER_EXPENSE_CATEGORIES.length)
+    expect(await categories.createStarterSet('expense', STARTER_EXPENSE_CATEGORIES, { now })).toBe(0)
     expect(await database.categories.count()).toBe(STARTER_EXPENSE_CATEGORIES.length)
   })
 })

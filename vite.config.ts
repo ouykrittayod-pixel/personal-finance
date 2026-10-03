@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { classifySupabaseKey } from './src/lib/supabase/key-kind.ts'
 
 /**
  * Public base path.
@@ -38,58 +39,77 @@ function vendorChunk(moduleId: string): string | null {
   return VENDOR_CHUNKS.find(([, test]) => test.test(moduleId))?.[0] ?? null
 }
 
+/**
+ * Every VITE_ variable is compiled into the browser bundle. Refuse the build if
+ * one looks like a secret (service_role / sb_secret_ key, password, JWT secret…).
+ */
+function assertNoSecretsInClientEnv(mode: string) {
+  for (const [name, value] of Object.entries(loadEnv(mode, process.cwd(), 'VITE_'))) {
+    if (/SERVICE_ROLE|SECRET|PASSWORD|PASSPHRASE|PRIVATE|JWT|RECOVERY/i.test(name))
+      throw new Error(`${name}: secrets must never be VITE_ variables — they would be bundled into the browser.`)
+    const trimmed = value.trim()
+    if (trimmed.startsWith('sb_secret_') || (/^[\w-]+\.[\w-]+\.[\w-]+$/.test(trimmed) && classifySupabaseKey(trimmed) === 'secret'))
+      throw new Error(`${name}: this is a privileged Supabase key (service_role / secret). Use the anon or publishable key.`)
+  }
+}
+
 // https://vite.dev/config/
-export default defineConfig({
-  base,
-  define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion) },
-  plugins: [
-    react(),
-    tailwindcss(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: 'auto',
-      manifest: {
-        name: 'การเงินส่วนตัว',
-        short_name: 'การเงิน',
-        description: 'บันทึกรายรับรายจ่ายส่วนตัว ข้อมูลเก็บในเครื่องของคุณเท่านั้น',
-        lang: 'th',
-        theme_color: '#0f766e',
-        background_color: '#ffffff',
-        display: 'standalone',
-        start_url: base,
-        scope: base,
-        icons: [
-          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-      includeManifestIcons: false,
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
-        // Hash routing: every route is served by index.html.
-        navigateFallback: `${base}index.html`,
-        cleanupOutdatedCaches: true,
-      },
-      devOptions: { enabled: false },
-    }),
-  ],
-  build: {
-    rolldownOptions: {
-      output: {
-        codeSplitting: { groups: [{ name: vendorChunk }] },
+export default defineConfig(({ mode }) => {
+  assertNoSecretsInClientEnv(mode)
+  return {
+    base,
+    define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion) },
+    plugins: [
+      react(),
+      tailwindcss(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        injectRegister: 'auto',
+        manifest: {
+          name: 'การเงินส่วนตัว',
+          short_name: 'การเงิน',
+          description: 'บันทึกรายรับรายจ่ายส่วนตัว ข้อมูลเก็บในเครื่องของคุณเท่านั้น',
+          lang: 'th',
+          theme_color: '#0f766e',
+          background_color: '#ffffff',
+          display: 'standalone',
+          start_url: base,
+          scope: base,
+          icons: [
+            { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+            { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+            { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          ],
+        },
+        includeManifestIcons: false,
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+          // Hash routing: every route is served by index.html.
+          navigateFallback: `${base}index.html`,
+          cleanupOutdatedCaches: true,
+        },
+        devOptions: { enabled: false },
+      }),
+    ],
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: { groups: [{ name: vendorChunk }] },
+        },
       },
     },
-  },
-  resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
-  },
-  test: {
-    globals: true,
-    // Plain Node by default (fast); component tests opt into jsdom with a @vitest-environment docblock.
-    environment: 'node',
-    setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}'],
-    css: false,
-  },
+    resolve: {
+      alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    },
+    test: {
+      globals: true,
+      // Plain Node by default (fast); component tests opt into jsdom with a @vitest-environment docblock.
+      environment: 'node',
+      setupFiles: ['./src/test/setup.ts'],
+      // Tests never use a developer's real cloud settings (.env.local): the app runs unconfigured, nothing can reach Supabase.
+      env: { VITE_SUPABASE_URL: '', VITE_SUPABASE_ANON_KEY: '' },
+      include: ['src/**/*.test.{ts,tsx}'],
+      css: false,
+    },
+  }
 })

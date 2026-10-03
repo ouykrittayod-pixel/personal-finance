@@ -2,7 +2,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { QuickEntryProvider } from '@/app/providers/QuickEntryProvider'
 import { ToastProvider } from '@/components/feedback/Toast'
 import { db } from '@/db/dexie'
@@ -26,7 +26,8 @@ function testOps(): RecurringOps {
     pause: (id) => recurringObligationsRepository.pause(id, stamp),
     resume: (id) => recurringObligationsRepository.resume(id, stamp),
     archive: (id) => recurringObligationsRepository.archive(id, stamp),
-    markPaid: (paymentId, draft, attachments, transactionId) => scheduledPaymentsRepository.markPaid(paymentId, draft, attachments, { transactionId, now: stamp.now, newId }),
+    markPaid: (paymentId, draft, attachments, transactionId) =>
+      scheduledPaymentsRepository.markPaid(paymentId, draft, attachments, { transactionId, now: stamp.now, newId }),
     skip: (paymentId) => scheduledPaymentsRepository.markSkipped(paymentId, stamp),
     unskip: (paymentId) => scheduledPaymentsRepository.markUnskipped(paymentId, stamp),
   }
@@ -61,7 +62,16 @@ async function seedIncome() {
     makeCategory({ id: 'side', name: 'รายได้เสริม', kind: 'income', icon: '🧩', sortOrder: 1 }),
   ])
   await db.transactions.bulkAdd([
-    makeTx({ id: 'sal', type: 'income', amountSatang: baht(27_500), accountId: 'kbank', categoryId: 'salary', date: '2026-09-25', description: 'เงินเดือน กันยายน', createdAt: '2026-09-25T03:00:00Z' }),
+    makeTx({
+      id: 'sal',
+      type: 'income',
+      amountSatang: baht(27_500),
+      accountId: 'kbank',
+      categoryId: 'salary',
+      date: '2026-09-25',
+      description: 'เงินเดือน กันยายน',
+      createdAt: '2026-09-25T03:00:00Z',
+    }),
     makeTx({ id: 'move', type: 'transfer', amountSatang: baht(5_000), accountId: 'kbank', toAccountId: 'cash', date: '2026-09-26', description: 'ถอนเงินสด' }),
   ])
 }
@@ -75,6 +85,11 @@ describe('Income — empty and first income', () => {
   beforeEach(seedAccounts)
 
   it('shows the header, a useful empty state and an explicit category setup before the shared form', async () => {
+    // The form's date defaults to the real clock; pin it to the page's TODAY so the new income lands in "this month".
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(`${TODAY}T03:00:00.000Z`) })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     const { user } = renderIncome()
     expect(await screen.findByRole('heading', { level: 1, name: 'รายรับ' })).toBeInTheDocument()
     expect(screen.getByText('ดูและจัดการรายรับทั้งหมด')).toBeInTheDocument()

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { db } from '@/db/dexie'
 import { loadIntegritySnapshot } from '@/db/integrity-snapshot'
+import { auditLocalSync, readSyncStatus, resetSyncMetadata } from '@/db/sync/foundation'
 import { auditIntegrity, formatIntegrityReport, type IntegritySnapshot } from '@/domain/integrity'
 import { readBackup } from '@/features/backup/read-backup'
 
@@ -28,6 +29,22 @@ export function IntegrityPage() {
     }
     setSource(label)
     setMs(Math.round(performance.now() - start))
+  }, [])
+
+  const [sync, setSync] = useState<string | null>(null)
+  const readSync = useCallback(async () => {
+    try {
+      const [status, issues] = await Promise.all([readSyncStatus(db), auditLocalSync(db)])
+      setSync(
+        [
+          `อุปกรณ์: ${status.deviceId ?? '—'} · ซิงก์: ${status.syncEnabled ? 'เปิด' : 'ปิด'} (${status.status}) · epoch ${status.epoch}`,
+          `outbox: create ${status.outbox.create} · update ${status.outbox.update} · delete ${status.outbox.delete} · tombstones ${status.tombstones}`,
+          issues.length ? [`ปัญหา ${issues.length}:`, ...issues.map((i) => `- ${i.table} ${i.id} ${i.code}`)].join('\n') : 'ความสอดคล้อง: PASS (0 ปัญหา)',
+        ].join('\n'),
+      )
+    } catch (error) {
+      setSync(`อ่านไม่ได้: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }, [])
 
   async function auditFile(file: File | undefined) {
@@ -58,6 +75,28 @@ export function IntegrityPage() {
           </p>
           <pre data-testid="integrity-report" className="overflow-x-auto rounded-lg bg-muted/50 p-3 text-xs whitespace-pre-wrap">
             {text ?? 'กดปุ่มเพื่อตรวจ'}
+          </pre>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="flex flex-col gap-3 text-sm">
+          <h2 className="font-medium">ข้อมูลเตรียมซิงก์ในเครื่อง (ยังไม่มีการซิงก์ผ่านเครือข่าย)</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="touch" onClick={() => void readSync()}>
+              อ่านสถานะ
+            </Button>
+            <Button
+              variant="outline"
+              size="touch"
+              onClick={() => {
+                if (window.confirm('ล้าง outbox, tombstones และสถานะซิงก์ในเครื่องนี้? ข้อมูลการเงินไม่ถูกแตะ')) void resetSyncMetadata(db).then(readSync)
+              }}
+            >
+              รีเซ็ตข้อมูลซิงก์ (dev)
+            </Button>
+          </div>
+          <pre data-testid="sync-status" className="overflow-x-auto rounded-lg bg-muted/50 p-3 text-xs whitespace-pre-wrap">
+            {sync ?? 'กดปุ่มเพื่ออ่าน'}
           </pre>
         </CardContent>
       </Card>

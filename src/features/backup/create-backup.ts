@@ -4,7 +4,9 @@
  */
 import type { FinanceDatabase } from '@/db/dexie'
 import { toStorageError } from '@/db/errors'
-import { LATEST_SCHEMA_VERSION } from '@/db/schema'
+import { DATA_SCHEMA_VERSION } from '@/db/schema'
+import { resetAfterReplace, withDeterministicOccurrenceIds } from '@/db/sync/foundation'
+import { suppressSyncTracking } from '@/db/sync/tracking'
 import { blobToBase64 } from './base64'
 import {
   BACKUP_CALENDAR,
@@ -92,7 +94,7 @@ export async function createBackup(database: FinanceDatabase, exportedAt: string
     format: BACKUP_FORMAT,
     formatVersion: BACKUP_FORMAT_VERSION,
     appVersion,
-    schemaVersion: LATEST_SCHEMA_VERSION,
+    schemaVersion: DATA_SCHEMA_VERSION,
     exportedAt,
     currency: BACKUP_CURRENCY,
     calendar: BACKUP_CALENDAR,
@@ -111,12 +113,21 @@ export function backupToBlob(backup: BackupFile): Blob {
  * the transaction aborts and IndexedDB rolls back — the current data is kept
  * as it was. Blobs are decoded before the transaction starts (in readBackup),
  * so the transaction only contains database operations.
+ *
+ * Sync bookkeeping: occurrence ids from older backups get their deterministic
+ * form (transactions follow), the restore itself is not recorded as changes,
+ * and pending outbox entries/tombstones are cleared (they described the data
+ * that was replaced). The device id is kept.
  */
 export async function replaceDatabase(database: FinanceDatabase, restore: Pick<PreparedRestore, 'records' | 'blobs'>): Promise<void> {
-  const { records, blobs } = restore
+  const { renamed: _renamed, ...records } = withDeterministicOccurrenceIds(restore.records)
+  const { blobs } = restore
+  const syncTables = [database.syncOutbox, database.syncTombstones, database.syncState, database.syncSettings]
   try {
-    await database.transaction('rw', allTables(database), async () => {
+    await database.transaction('rw', [...allTables(database), ...syncTables], async (tx) => {
+      suppressSyncTracking(tx.idbtrans)
       await Promise.all(allTables(database).map((table) => table.clear()))
+      await resetAfterReplace(database)
       await database.accounts.bulkAdd(records.accounts)
       await database.categories.bulkAdd(records.categories)
       await database.debts.bulkAdd(records.debts)

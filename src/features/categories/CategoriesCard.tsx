@@ -71,7 +71,6 @@ export function CategoriesCard() {
                   () =>
                     categoriesRepository.createStarterSet(kind, kind === 'income' ? STARTER_INCOME_CATEGORIES : STARTER_EXPENSE_CATEGORIES, {
                       now: now(),
-                      newId,
                     }),
                   t('categories.saved'),
                 )

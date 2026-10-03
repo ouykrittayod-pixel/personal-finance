@@ -1,4 +1,5 @@
 import type { ID, ISODate, RecurringObligation, ScheduledPayment } from '@/domain/entities'
+import { occurrenceId } from '@/domain/identity'
 import {
   buildObligation,
   planMissingOccurrences,
@@ -35,15 +36,19 @@ export interface ObligationMeta {
 
 const KNOWN = [ObligationValidationError, ObligationNotFoundError]
 
-/** Scheduled-payment records for new occurrences of an obligation. */
+/**
+ * Scheduled-payment records for new occurrences of an obligation or debt. Ids
+ * are deterministic (source + due date, see domain/identity), so every device
+ * that generates the same occurrence gives it the same id.
+ */
 export function occurrenceRecords(
   sourceId: ID,
   occurrences: readonly NewOccurrence[],
-  meta: Pick<ObligationMeta, 'now' | 'newId'>,
+  meta: Pick<ObligationMeta, 'now'>,
   sourceType: ScheduledPayment['sourceType'] = 'obligation',
 ): ScheduledPayment[] {
   return occurrences.map((occurrence) => ({
-    id: meta.newId(),
+    id: occurrenceId(sourceType, sourceId, occurrence.dueDate),
     sourceType,
     sourceId,
     dueDate: occurrence.dueDate,

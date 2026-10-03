@@ -54,6 +54,11 @@ describe('schema', () => {
         'recurringObligations',
         'scheduledPayments',
         'transactions',
+        'syncOutbox',
+        'syncTombstones',
+        'syncState',
+        'syncSettings',
+        'keyring',
       ].sort(),
     )
   })

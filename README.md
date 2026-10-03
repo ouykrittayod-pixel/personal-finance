@@ -158,7 +158,7 @@ Transaction          (linked both ways: scheduledPaymentId / transactionId)
 `Debt` is its own entity. Its payment history = `debt_payment` transactions with that `debtId` (indexed) + its
 `ScheduledPayment`s (`sourceType: 'debt'`). Two balance models — see [Debts & repayment](#debts--repayment).
 
-### IndexedDB schema (version 1)
+### IndexedDB schema (version 3)
 
 | Table                  | Indexes                                                                                           |
 | ---------------------- | ------------------------------------------------------------------------------------------------- |
@@ -172,8 +172,15 @@ Transaction          (linked both ways: scheduledPaymentId / transactionId)
 | `attachments`          | `id`, transactionId, createdAt (metadata only)                                                    |
 | `attachmentBlobs`      | `id` (binary data, same id as attachment)                                                         |
 | `meta`                 | `key` (lastBackupAt, …)                                                                           |
+| `syncOutbox`           | **[tableName+recordId]**, seq, tableName (device-local, v2)                                       |
+| `syncTombstones`       | **[tableName+recordId]**, tableName (device-local, v2)                                            |
+| `syncState`            | `key` (device-local, v2)                                                                          |
+| `syncSettings`         | `key` (device id, sync off; device-local, v2)                                                     |
+| `keyring`              | `kid` (passphrase-wrapped encryption key; device-local, never backed up, v3)                      |
 
 The database starts **empty** — no demo or seed data.
+
+Two version numbers: the **Dexie version** (`LATEST_SCHEMA_VERSION`, now 2) describes local storage, including device-only tables; the **data schema version** (`DATA_SCHEMA_VERSION`, still 1) describes business records and is what backups carry. v2 added only device-local tables, so backups are unchanged (format v1, schema 1).
 
 ### Changing the schema
 
@@ -182,8 +189,45 @@ The database starts **empty** — no demo or seed data.
 3. Transform existing data in `upgrade(tx)`.
 4. Bump `BACKUP_FORMAT_VERSION` when entity shapes change and keep older backups importable.
 5. Add a test that opens the previous version with data and upgrades it.
+6. Bump `DATA_SCHEMA_VERSION` only when business records change shape.
 
 Conventions: calendar dates are local `"YYYY-MM-DD"` strings (no time-zone drift); timestamps are UTC ISO strings; optional fields are omitted, not `null` (IndexedDB can't index null).
+
+---
+
+## Local sync foundation (Phase 18 — local only)
+
+There is **no network sync**: no account, no login, no cloud, no requests. The local database is only prepared for an opt-in multi-device sync in a later phase. Users see no difference.
+
+- **Device id** — `syncSettings.device`: a random `crypto.randomUUID()` made once per database, with `syncEnabled: false`. No hardware or browser fingerprint. Not in backups.
+- **Outbox** — every write to a synced table (accounts, categories, transactions, recurring rules, scheduled payments, debts, budgets, attachment metadata) records `{ table, record id, create/update/delete, opId, seq }` in the **same IndexedDB transaction** as the write (Dexie DBCore middleware, `src/db/sync/tracking.ts`), so it can never miss a write or survive a rolled-back one. Entries hold **no record content** (the record is read when sent). Several changes to one record collapse into one entry (`collapseOutbox` in `src/domain/sync.ts`). Not tracked: `meta`, attachment blobs, schema upgrades, restore.
+- **Tombstones** — deletes leave `{ table, record id, deletedAt, opId }` so another device can learn about them later; a record created and deleted before it was ever sent leaves nothing.
+- **Revisions** — never from device clocks. Base revisions stay 0 until a server exists; the server will assign them. `seq` is a local counter, not a time.
+- **Attachments** — metadata syncs later; blobs stay on the device (content-addressed, encrypted upload is a later phase).
+- **Restore** — not recorded as changes; clears outbox and tombstones and bumps `syncState.epoch` (a later sync must reconcile from scratch). The device id is kept.
+- **Dev only** — `#/dev/integrity` shows device id, outbox counts and a consistency check (counts and ids only), and can reset sync metadata (business data untouched).
+
+## Encrypted cloud foundation (Phase 19 — optional, synthetic data only)
+
+Sign-in is optional; without it (or without cloud configuration) the app works exactly as before. **No finance data is synced or uploaded.** Only `synthetic_*` test records can be stored — enforced by the client and by a database constraint.
+
+- **Sign-in:** Supabase email one-time code / magic link (PKCE). Settings → "บัญชีคลาวด์และการเข้ารหัส". The session lives in `localStorage` (`pf-cloud-auth`), never in IndexedDB or backups.
+- **Encryption:** AES-256-GCM via Web Crypto. A random data key is wrapped with a separate **encryption passphrase** (PBKDF2-SHA-256, 600k iterations) and stored in the local `keyring` table. The unwrapped key is a non-extractable in-memory `CryptoKey`; sign-out locks it. Envelope: `{ v, alg, kid, iv, ct }` (base64url), bound to user/type/id by AAD.
+- **Server:** `supabase/migrations/` creates `sync_records` (ciphertext + minimal routing metadata, RLS owner-only) and a private `encrypted-attachments` bucket. See `supabase/README.md`.
+- **Config:** `.env.local` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` only (see `.env.example`). Service-role / secret keys are refused at build and run time.
+- **Dev:** `#/dev/cloud` runs the synthetic round trip (43 records: encrypt → upload → download → decrypt → compare → delete).
+- **Security model:** `docs/security/phase-19-security.md`.
+
+### Natural identities
+
+| Record | Natural identity | Id |
+| --- | --- | --- |
+| Scheduled occurrence | sourceType + sourceId + dueDate (unique index) | **deterministic** UUID v5 (`occurrenceId`, `src/domain/identity.ts`) — every device generating "rent, 6 Oct" makes the same id |
+| Starter category | kind + template name | **deterministic** UUID v5 (`starterCategoryId`) — two devices creating the starter set make identical records |
+| Budget | month + categoryId (unique index) | random; a later sync merges budgets by the natural key |
+| Everything else | none | random UUID v4 (created once, on one device) |
+
+The v2 upgrade rewrote existing occurrence ids to their deterministic form and moved `transactions.scheduledPaymentId` along (paid history kept); older backups are converted the same way on restore. UUID v5 uses a small synchronous SHA-1 (`src/lib/ids/deterministic.ts`) because IndexedDB transactions end on an awaited WebCrypto call.
 
 ---
 

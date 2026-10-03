@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PagePlaceholder } from '@/components/PagePlaceholder'
 import { BackupCard, ExportCard, RestoreCard } from '@/features/backup'
 import { CategoriesCard } from '@/features/categories'
+import { CloudCard } from '@/features/cloud'
 import { SetupSettingsCard } from '@/features/setup'
 import { getStorageEstimate, type StorageEstimate } from '@/db/persistence'
-import { LATEST_SCHEMA_VERSION } from '@/db/schema'
+import { DATA_SCHEMA_VERSION } from '@/db/schema'
 import { formatBytes } from '@/lib/formatting'
 import { t } from '@/lib/i18n'
 
@@ -33,6 +34,7 @@ export function SettingsPage() {
       <BackupCard />
       <RestoreCard />
       <ExportCard />
+      <CloudCard />
       <Card>
         <CardHeader>
           <CardTitle>
@@ -55,7 +57,7 @@ export function SettingsPage() {
           {estimate && (
             <p className="text-muted-foreground">{t('storage.usage', { used: formatBytes(estimate.usageBytes), quota: formatBytes(estimate.quotaBytes) })}</p>
           )}
-          <p className="text-muted-foreground">{t('storage.schemaVersion', { version: LATEST_SCHEMA_VERSION })}</p>
+          <p className="text-muted-foreground">{t('storage.schemaVersion', { version: DATA_SCHEMA_VERSION })}</p>
         </CardContent>
       </Card>
     </PagePlaceholder>

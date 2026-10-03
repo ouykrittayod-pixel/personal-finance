@@ -1,5 +1,6 @@
 import { buildCategory, isDuplicateCategory, type CategoryDraft, type CategoryIssue } from '@/domain/categories'
 import type { Category, CategoryKind, ID } from '@/domain/entities'
+import { starterCategoryId } from '@/domain/identity'
 import type { FinanceDatabase } from '../dexie'
 import { rethrowStorage } from '../errors'
 
@@ -44,13 +45,14 @@ export function createCategoriesRepository(database: FinanceDatabase) {
      * and only if they have none of that kind yet (safe to call twice).
      * Returns how many were created.
      */
-    async createStarterSet(kind: CategoryKind, templates: readonly CategoryTemplate[], meta: { now: string; newId: () => string }): Promise<number> {
+    async createStarterSet(kind: CategoryKind, templates: readonly CategoryTemplate[], meta: { now: string }): Promise<number> {
       return database.transaction('rw', database.categories, async () => {
         const existing = await database.categories.where('kind').equals(kind).count()
         if (existing > 0) return 0
         await database.categories.bulkAdd(
           templates.map((template, index): Category => ({
-            id: meta.newId(),
+            // Deterministic: two devices creating the starter set make identical records (domain/identity).
+            id: starterCategoryId(kind, template.name),
             kind,
             name: template.name,
             ...(template.icon ? { icon: template.icon } : {}),

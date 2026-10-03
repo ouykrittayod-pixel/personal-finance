@@ -6,7 +6,7 @@
  */
 import type { AttachmentBlob } from '@/domain/entities'
 import { OVERALL_BUDGET } from '@/domain/budget'
-import { LATEST_SCHEMA_VERSION } from '@/db/schema'
+import { DATA_SCHEMA_VERSION } from '@/db/schema'
 import { base64ToBytes } from './base64'
 import {
   BACKUP_CALENDAR,
@@ -60,7 +60,7 @@ function readV1(raw: unknown): PreparedRestore {
     )
   const { schemaVersion, currency, calendar, data } = header.data
   // Older schema versions would need a migration; none exist yet. Newer ones come from a newer app.
-  if (schemaVersion !== LATEST_SCHEMA_VERSION) throw new BackupError('unsupported_version', [`schemaVersion ${schemaVersion}`])
+  if (schemaVersion !== DATA_SCHEMA_VERSION) throw new BackupError('unsupported_version', [`schemaVersion ${schemaVersion}`])
   if (currency !== BACKUP_CURRENCY || calendar !== BACKUP_CALENDAR) throw new BackupError('invalid_data', [`currency ${currency}`, `calendar ${calendar}`])
 
   // Records: every collection present, every record exactly the stored shape.

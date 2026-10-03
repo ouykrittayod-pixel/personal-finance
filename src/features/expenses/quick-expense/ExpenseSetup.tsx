@@ -109,7 +109,6 @@ export function ExpenseSetup({
             void run('categories', () =>
               categoriesRepository.createStarterSet(kind, starter, {
                 now: new Date().toISOString(),
-                newId,
               }),
             )
           }

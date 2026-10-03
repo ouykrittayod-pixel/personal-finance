@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { db } from '@/db/dexie'
 import { requestPersistentStorage, type PersistenceStatus } from '@/db/persistence'
+import { ensureSyncFoundation } from '@/db/sync/foundation'
+import { hasAuthRedirect } from '@/lib/supabase/client'
 import { todayISO } from '@/lib/dates'
 import { newId } from '@/lib/ids'
 import { t } from '@/lib/i18n'
@@ -21,6 +23,17 @@ export function StorageProvider({ children }: { children: ReactNode }) {
     db.open()
       .then(() => {
         if (!cancelled) setOpenState({ status: 'ready' })
+        // Local sync bookkeeping: this device's random id, sync off. Nothing is sent anywhere.
+        ensureSyncFoundation(db).catch(() => {
+          // Not fatal: the first tracked write creates the rows too.
+        })
+        // Returning from an emailed sign-in link (?code=…): finish signing in. Cloud code loads only in this case.
+        if (hasAuthRedirect())
+          import('@/features/cloud/cloud')
+            .then(({ startCloud }) => startCloud())
+            .catch(() => {
+              // Not fatal: Settings retries when opened.
+            })
         // Bring recurring bills' scheduled payments up to date (idempotent; never creates transactions).
         // Loaded on demand so the scheduling code stays out of the initial bundle.
         import('@/db/repositories')

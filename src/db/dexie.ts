@@ -1,4 +1,4 @@
-import Dexie, { type EntityTable } from 'dexie'
+import Dexie, { type EntityTable, type Table } from 'dexie'
 import type {
   Account,
   Attachment,
@@ -11,7 +11,10 @@ import type {
   ScheduledPayment,
   Transaction,
 } from '@/domain/entities'
+import type { OutboxEntry, SyncSettings, SyncState, Tombstone } from '@/domain/sync'
+import type { WrappedKey } from '@/lib/crypto/keyring'
 import { DB_NAME, SCHEMA_VERSIONS } from './schema'
+import { syncTrackingMiddleware } from './sync/tracking'
 
 export class FinanceDatabase extends Dexie {
   declare accounts: EntityTable<Account, 'id'>
@@ -24,6 +27,13 @@ export class FinanceDatabase extends Dexie {
   declare attachments: EntityTable<Attachment, 'id'>
   declare attachmentBlobs: EntityTable<AttachmentBlob, 'id'>
   declare meta: EntityTable<MetaEntry, 'key'>
+  // Device-local sync bookkeeping (Phase 18; no network sync exists).
+  declare syncOutbox: Table<OutboxEntry, [string, string]>
+  declare syncTombstones: Table<Tombstone, [string, string]>
+  declare syncState: EntityTable<SyncState, 'key'>
+  declare syncSettings: EntityTable<SyncSettings, 'key'>
+  /** Passphrase-wrapped data key (Phase 19). The unwrapped key is never stored. */
+  declare keyring: EntityTable<WrappedKey, 'kid'>
 
   constructor(name: string = DB_NAME) {
     super(name)
@@ -31,6 +41,8 @@ export class FinanceDatabase extends Dexie {
       const v = this.version(version).stores(stores)
       if (upgrade) v.upgrade(upgrade)
     }
+    // Every write to a synced table records its outbox entry in the same transaction.
+    this.use(syncTrackingMiddleware())
   }
 }
 
