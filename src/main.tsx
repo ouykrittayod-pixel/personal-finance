@@ -1,3 +1,5 @@
+// Must run before the router is created (it reads the address).
+import '@/app/oauth-return'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router/dom'
