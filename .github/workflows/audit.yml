@@ -1,0 +1,50 @@
+# Temporary: one-off audit run (npm audit, coverage, bundle sizes). Not merged.
+name: Audit (temporary)
+on:
+  push:
+    branches: [audit/tmp]
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: npm audit
+        run: |
+          npm audit --json > audit.json || true
+          node -e 'const a=require("./audit.json");const v=a.metadata?.vulnerabilities||{};console.log(JSON.stringify(v));for(const [n,x] of Object.entries(a.vulnerabilities||{}))console.log(`- ${n} (${x.severity}) direct=${x.isDirect} fix=${typeof x.fixAvailable==="object"?x.fixAvailable.name+"@"+x.fixAvailable.version:x.fixAvailable} via=${(x.via||[]).map(v=>typeof v==="string"?v:v.title).join("; ").slice(0,200)}`)' > audit.txt
+          npm outdated --long > outdated.txt || true
+      - name: coverage
+        run: |
+          npm i --no-save "@vitest/coverage-v8@$(node -p "require('vitest/package.json').version")"
+          npx vitest run --coverage --coverage.provider=v8 --coverage.reporter=json-summary --coverage.reporter=text-summary --coverage.include='src/**' --coverage.exclude='src/**/*.test.*' --coverage.exclude='src/test/**' --coverage.exclude='src/components/ui/**' 2>&1 | tail -15 > coverage.txt
+          node -e 'const s=require("./coverage/coverage-summary.json");const rows=Object.entries(s).filter(([k])=>k!=="total").map(([k,v])=>[k.replace(/.*\/src\//,"src/"),v.lines.pct,v.lines.total,v.branches.pct]).filter(r=>r[2]>=15).sort((a,b)=>a[1]-b[1]).slice(0,40);for(const r of rows)console.log(`${String(r[1]).padStart(6)}% lines  ${String(r[3]).padStart(6)}% br  ${String(r[2]).padStart(4)} lines  ${r[0]}`)' > lowcov.txt
+      - name: build sizes
+        run: |
+          npx vite build > build.txt 2>&1
+          (cd dist && for f in $(find . -name '*.js' -o -name '*.css' | sort); do printf "%8d %8d %s\n" $(wc -c < $f) $(gzip -9c $f | wc -c) $f; done | sort -rn | head -25) > sizes.txt
+          du -sh dist >> sizes.txt
+      - name: post results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo '## npm audit'; echo '```'; cat audit.txt; echo '```'
+            echo '## npm outdated'; echo '```'; cat outdated.txt; echo '```'
+            echo '## coverage'; echo '```'; cat coverage.txt; echo '```'
+            echo '## lowest line coverage (files >= 15 lines)'; echo '```'; cat lowcov.txt; echo '```'
+            echo '## bundle (bytes, gzip)'; echo '```'; cat sizes.txt; echo '```'
+          } > body.md
+          for i in 1 2 3 4 5 6; do
+            PR=$(gh api "repos/${GITHUB_REPOSITORY}/pulls?head=${GITHUB_REPOSITORY_OWNER}:audit/tmp&state=open" --jq '.[0].number')
+            [ -n "$PR" ] && break; sleep 20
+          done
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@body.md --jq .html_url
