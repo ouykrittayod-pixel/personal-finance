@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 /**
@@ -49,6 +49,35 @@ function assertNoSecretsInClientEnv(mode: string) {
   }
 }
 
+/**
+ * Content-Security-Policy for production builds (a <meta> tag: GitHub Pages cannot set headers).
+ * Only this site's own files run; the network is limited to Google sign-in, Drive and Sheets.
+ * Not applied in dev, where Vite injects inline scripts for hot reload.
+ */
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' https://accounts.google.com/gsi/client",
+  // Inline styles: React style attributes and the chart theme <style>; Google's sign-in button styles.
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' https://www.googleapis.com https://sheets.googleapis.com https://oauth2.googleapis.com https://accounts.google.com/gsi/",
+  'frame-src https://accounts.google.com/gsi/',
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ')
+
+function contentSecurityPolicy(): Plugin {
+  return {
+    name: 'content-security-policy',
+    apply: 'build',
+    transformIndexHtml: () => [{ tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: CONTENT_SECURITY_POLICY }, injectTo: 'head-prepend' }],
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   assertNoSecretsInClientEnv(mode)
@@ -56,6 +85,7 @@ export default defineConfig(({ mode }) => {
     base,
     define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion) },
     plugins: [
+      contentSecurityPolicy(),
       react(),
       tailwindcss(),
       VitePWA({

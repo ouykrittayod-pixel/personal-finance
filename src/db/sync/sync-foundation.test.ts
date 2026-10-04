@@ -245,6 +245,23 @@ describe('outbox tracking (same transaction as the write)', () => {
     expect(await database.syncTombstones.count()).toBe(0)
   })
 
+  it('overlapping writes in one transaction are tracked in order (un-awaited put, then delete)', async () => {
+    await database.accounts.add(makeAccount({ id: 'kept' }))
+    await database.syncOutbox.clear() // as if sent
+    await database.transaction('rw', database.accounts, async () => {
+      // Started together on purpose: the delete must see the put that was issued before it.
+      const put = database.accounts.put(makeAccount({ id: 'a1' }))
+      const del = database.accounts.delete('a1')
+      const update = database.accounts.update('kept', { name: 'renamed' })
+      await Promise.all([put, del, update])
+    })
+    expect(await database.accounts.get('a1')).toBeUndefined()
+    expect(await entryFor(database, 'accounts', 'a1')).toBeUndefined()
+    expect(await database.syncTombstones.count()).toBe(0)
+    expect(await entryFor(database, 'accounts', 'kept')).toMatchObject({ op: 'update' })
+    expect(await auditLocalSync(database)).toEqual([])
+  })
+
   it('deleting a sent record leaves a delete entry and a tombstone; recreating it removes the tombstone', async () => {
     await database.accounts.add(makeAccount({ id: 'a1' }))
     await database.syncOutbox.clear()
