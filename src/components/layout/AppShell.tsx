@@ -14,6 +14,8 @@ export interface AppShellProps {
   quickAction: ShellQuickAction
   /** Global actions in the tablet/desktop header (e.g. "+ บันทึกรายจ่าย"). */
   headerActions?: ReactNode
+  /** Always-visible header status (sync state). */
+  headerStatus?: ReactNode
   children: ReactNode
 }
 
@@ -28,7 +30,7 @@ export interface AppShellProps {
  *
  * Content is capped at --container-content and padded with --spacing-page-*.
  */
-export function AppShell({ navItems, quickAction, headerActions, children }: AppShellProps) {
+export function AppShell({ navItems, quickAction, headerActions, headerStatus, children }: AppShellProps) {
   const { pathname } = useLocation()
   // The drawer menu belongs to the route it was opened on, so any navigation
   // (link, back button, typed URL) closes it without extra effects.
@@ -69,6 +71,7 @@ export function AppShell({ navItems, quickAction, headerActions, children }: App
       <div className="flex min-h-svh flex-col md:pl-sidebar-rail lg:pl-sidebar">
         <Header
           title={title}
+          status={headerStatus}
           actions={headerActions ? <div className="hidden items-center gap-2 md:flex">{headerActions}</div> : undefined}
         />
 

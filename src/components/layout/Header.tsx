@@ -7,6 +7,8 @@ export interface HeaderProps {
   title: string
   /** Right-aligned actions, e.g. the desktop quick-add button. */
   actions?: ReactNode
+  /** Always-visible status (e.g. sync), shown before the actions on every screen size. */
+  status?: ReactNode
   className?: string
 }
 
@@ -14,7 +16,7 @@ export interface HeaderProps {
  * Top bar. Phones: compact (app mark + section name). Tablet/desktop: section
  * name + global actions. Sticky so actions stay reachable while scrolling.
  */
-export function Header({ title, actions, className }: HeaderProps) {
+export function Header({ title, actions, status, className }: HeaderProps) {
   return (
     <header
       className={cn(
@@ -29,6 +31,7 @@ export function Header({ title, actions, className }: HeaderProps) {
       <p className="min-w-0 flex-1 truncate text-base font-semibold md:text-sm md:font-medium md:text-muted-foreground">
         {title}
       </p>
+      {status && <div className="flex shrink-0 items-center">{status}</div>}
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </header>
   )

@@ -5,10 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PagePlaceholder } from '@/components/PagePlaceholder'
 import { BackupCard, ExportCard, RestoreCard } from '@/features/backup'
 import { CategoriesCard } from '@/features/categories'
+import { DriveCard } from '@/features/drive'
 import { SetupSettingsCard } from '@/features/setup'
 import { getStorageEstimate, type StorageEstimate } from '@/db/persistence'
 import { DATA_SCHEMA_VERSION } from '@/db/schema'
 import { formatBytes } from '@/lib/formatting'
+import { driveConfigured } from '@/lib/google/config'
 import { t } from '@/lib/i18n'
 
 const PERSISTENCE_LABEL = {
@@ -28,6 +30,7 @@ export function SettingsPage() {
 
   return (
     <PagePlaceholder titleKey="nav.settings">
+      <DriveCard />
       <SetupSettingsCard />
       <CategoriesCard />
       <BackupCard />
@@ -36,9 +39,9 @@ export function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            <h2>{t('storage.section')}</h2>
+            <h2>{t(driveConfigured ? 'storage.section.drive' : 'storage.section')}</h2>
           </CardTitle>
-          <CardDescription>{t('app.tagline')}</CardDescription>
+          <CardDescription>{t(driveConfigured ? 'app.tagline.drive' : 'app.tagline')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 text-sm">
           <div>
