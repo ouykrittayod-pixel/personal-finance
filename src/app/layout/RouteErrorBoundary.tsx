@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { isRouteErrorResponse, useRouteError } from 'react-router'
+import { isStaleVersionError, reloadForNewVersion } from '@/app/stale-version'
 import { ErrorState } from '@/components/feedback/ErrorState'
 import { t } from '@/lib/i18n'
 
@@ -11,6 +13,10 @@ export function RouteErrorBoundary({ inline = false }: { inline?: boolean }) {
   const error = useRouteError()
   const detail = isRouteErrorResponse(error) ? `${error.status} ${error.statusText}` : error instanceof Error ? error.message : String(error)
   console.error('Route error:', detail)
+  // A screen file from the previous version is gone after an update: load the new version instead of showing an error.
+  useEffect(() => {
+    if (isStaleVersionError(error)) reloadForNewVersion()
+  }, [error])
 
   if (inline) {
     return (
