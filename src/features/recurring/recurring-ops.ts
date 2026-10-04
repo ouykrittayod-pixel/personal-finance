@@ -2,8 +2,9 @@
  * The write operations the Recurring UI performs — thin wrappers over the
  * repositories that supply today / now / ids. Injectable for tests.
  */
-import { recurringObligationsRepository, scheduledPaymentsRepository, type NewAttachment } from '@/db/repositories'
+import { recurringObligationsRepository, scheduledPaymentsRepository, type NewAttachment, type OccurrenceRef } from '@/db/repositories'
 import type { ID } from '@/domain/entities'
+import type { Satang } from '@/domain/money'
 import type { ObligationDraft } from '@/domain/scheduling'
 import type { TransactionDraft } from '@/domain/transactions'
 import { todayISO } from '@/lib/dates'
@@ -22,6 +23,8 @@ export interface RecurringOps {
   markPaid: (paymentId: ID, draft: TransactionDraft, attachments: readonly NewAttachment[], transactionId: ID) => Promise<unknown>
   skip: (paymentId: ID) => Promise<unknown>
   unskip: (paymentId: ID) => Promise<unknown>
+  /** Plan one month's amount (an unpaid occurrence, or a month not generated yet). */
+  setAmount: (ref: OccurrenceRef, amountSatang: Satang) => Promise<unknown>
 }
 
 export const defaultRecurringOps: RecurringOps = {
@@ -35,4 +38,5 @@ export const defaultRecurringOps: RecurringOps = {
     scheduledPaymentsRepository.markPaid(paymentId, draft, attachments, { transactionId, now: new Date().toISOString(), newId }),
   skip: (paymentId) => scheduledPaymentsRepository.markSkipped(paymentId, { now: new Date().toISOString() }),
   unskip: (paymentId) => scheduledPaymentsRepository.markUnskipped(paymentId, { now: new Date().toISOString() }),
+  setAmount: (ref, amountSatang) => scheduledPaymentsRepository.setExpectedAmount(ref, amountSatang, stamp()),
 }

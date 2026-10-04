@@ -152,8 +152,13 @@ export interface RecurringObligation extends Timestamps {
    * when `debtId` is set). 'income' = expected money coming in (e.g. salary):
    * receiving an occurrence creates an `income` transaction. Added in the Income
    * phase; optional and unindexed, so no schema migration.
+   * 'transfer' = planned money moved to another of the user's accounts (savings,
+   * DCA…): paying an occurrence creates a `transfer` to `toAccountId` — never an
+   * expense. Added with the monthly plan (data schema 2).
    */
-  kind?: 'income'
+  kind?: 'income' | 'transfer'
+  /** kind 'transfer': the account the money goes to. */
+  toAccountId?: ID
   /**
    * First date scheduled payments are generated from (never earlier than the
    * rule's start). Set on create and on resume, so pausing never back-fills.

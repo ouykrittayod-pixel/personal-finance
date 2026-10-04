@@ -72,8 +72,9 @@ export const SCHEMA_VERSIONS: readonly SchemaVersion[] = [
 export const LATEST_SCHEMA_VERSION = SCHEMA_VERSIONS.at(-1)?.version ?? 0
 
 /**
- * Version of the business data (the records in backups). Stays 1: v2 only
- * added device-local tables and changed occurrence id values, not shapes.
- * Backups carry this number, so backup format v1 is unchanged.
+ * Version of the business data (the records in backups and the Drive file).
+ * 1: original shapes (IndexedDB v2 only added device-local tables and changed occurrence id values).
+ * 2: recurring rules may be planned transfers (`kind: 'transfer'`, `toAccountId`). Additive: version 1 data is valid version 2 data.
+ * A device on an older app sees the Drive file as "made by a newer app" and asks to update instead of failing on the new fields.
  */
-export const DATA_SCHEMA_VERSION = 1
+export const DATA_SCHEMA_VERSION = 2

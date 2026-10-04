@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { CreditCard, HandCoins, Pause, Pencil, Play, Repeat, SearchX, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, CreditCard, HandCoins, Pause, Pencil, Play, Repeat, SearchX, Trash2 } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { PrimaryButton, SecondaryButton } from '@/components/actions/buttons'
@@ -20,6 +20,7 @@ import { t } from '@/lib/i18n'
 import { actionFailureMessage } from '../errors'
 import { describePayment, loadRecurringDetail, perLabel, scheduleLabel, type RecurringDetail } from '../recurring-data'
 import type { RecurringOps } from '../recurring-ops'
+import { EditAmountDialog } from './EditAmountDialog'
 import { PayScheduledSheet } from './PayScheduledSheet'
 
 /** How many occurrences the detail lists (unpaid oldest first, then history newest first). */
@@ -42,9 +43,11 @@ function ScheduleItem({
   onPay,
   onSkip,
   onUnskip,
+  onEditAmount,
   income,
 }: {
   income: boolean
+  onEditAmount: () => void
   payment: ScheduledPayment
   detail: RecurringDetail
   today: ISODate
@@ -80,6 +83,9 @@ function ScheduleItem({
           <PrimaryButton onClick={onPay} disabled={busy} aria-label={t(income ? 'income.recurring.receiveFor' : 'recurring.action.payFor', { date: dueLabel })}>
             {t(income ? 'income.recurring.receive' : 'recurring.action.pay')}
           </PrimaryButton>
+          <SecondaryButton onClick={onEditAmount} disabled={busy} aria-label={t('plan.action.editAmountFor', { date: dueLabel })}>
+            {t('plan.action.editAmount')}
+          </SecondaryButton>
           <SecondaryButton onClick={onSkip} disabled={busy} aria-label={t('recurring.action.skipFor', { date: dueLabel })}>
             {t('recurring.action.skip')}
           </SecondaryButton>
@@ -114,6 +120,7 @@ type LoadResult = { ok: true; detail: RecurringDetail | null } | { ok: false } |
 export function RecurringDetailSheet({ obligationId, onClose, onEdit, today, ops, load = loadRecurringDetail }: RecurringDetailSheetProps) {
   const toast = useToast()
   const [paying, setPaying] = useState<ScheduledPayment | null>(null)
+  const [editing, setEditing] = useState<ScheduledPayment | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
@@ -122,6 +129,7 @@ export function RecurringDetailSheet({ obligationId, onClose, onEdit, today, ops
   if (shownId !== obligationId) {
     setShownId(obligationId)
     setPaying(null)
+    setEditing(null)
     setConfirmDelete(false)
   }
 
@@ -204,7 +212,13 @@ export function RecurringDetailSheet({ obligationId, onClose, onEdit, today, ops
           <div className="flex flex-col gap-section">
             <div className="flex items-start gap-3">
               <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-debt-muted text-lg text-debt">
-                {obligation.debtId ? <CreditCard className="size-5" /> : (detail.category?.icon ?? (income ? <HandCoins className="size-5" /> : <Repeat className="size-5" />))}
+                {obligation.debtId ? (
+                  <CreditCard className="size-5" />
+                ) : obligation.kind === 'transfer' ? (
+                  <ArrowLeftRight className="size-5" />
+                ) : (
+                  (detail.category?.icon ?? (income ? <HandCoins className="size-5" /> : <Repeat className="size-5" />))
+                )}
               </span>
               <div className="flex min-w-0 flex-col gap-1">
                 <p className="text-base font-semibold">{obligation.name}</p>
@@ -222,9 +236,13 @@ export function RecurringDetailSheet({ obligationId, onClose, onEdit, today, ops
             <dl className="divide-y divide-border border-y">
               <Row label={t('recurring.detail.frequency')}>{scheduleLabel(obligation.recurrence)}</Row>
               <Row label={t('recurring.detail.nextDue')}>{status.current ? formatDate(status.current.dueDate, 'long') : t('recurring.noUpcoming')}</Row>
-              <Row label={obligation.debtId ? t('recurring.detail.debt') : t('recurring.detail.category')}>
-                {obligation.debtId ? (detail.debt?.name ?? '—') : detail.category ? `${detail.category.icon ? `${detail.category.icon} ` : ''}${detail.category.name}` : '—'}
-              </Row>
+              {obligation.kind === 'transfer' ? (
+                <Row label={t('recurring.form.toAccount')}>{detail.accounts.find((a) => a.id === obligation.toAccountId)?.name ?? '—'}</Row>
+              ) : (
+                <Row label={obligation.debtId ? t('recurring.detail.debt') : t('recurring.detail.category')}>
+                  {obligation.debtId ? (detail.debt?.name ?? '—') : detail.category ? `${detail.category.icon ? `${detail.category.icon} ` : ''}${detail.category.name}` : '—'}
+                </Row>
+              )}
               <Row label={t(income ? 'income.detail.account' : 'recurring.detail.account')}>{detail.account?.name ?? '—'}</Row>
               <Row label={t('recurring.detail.startDate')}>{formatDate(obligation.recurrence.startDate, 'long')}</Row>
               {obligation.recurrence.endDate && <Row label={t('recurring.detail.endDate')}>{formatDate(obligation.recurrence.endDate, 'long')}</Row>}
@@ -247,6 +265,7 @@ export function RecurringDetailSheet({ obligationId, onClose, onEdit, today, ops
                       busy={busy}
                       income={income}
                       onPay={() => setPaying(payment)}
+                      onEditAmount={() => setEditing(payment)}
                       onSkip={() => void run(() => ops.skip(payment.id), t('recurring.toast.skipped', { date: formatDate(payment.dueDate) }))}
                       onUnskip={() => void run(() => ops.unskip(payment.id), t('recurring.toast.unskipped'))}
                     />
@@ -257,6 +276,14 @@ export function RecurringDetailSheet({ obligationId, onClose, onEdit, today, ops
           </div>
         )}
       </Drawer>
+
+      {obligation && (
+        <EditAmountDialog
+          target={editing ? { name: obligation.name, dueDate: editing.dueDate, amountSatang: editing.expectedAmountSatang, income } : null}
+          onClose={() => setEditing(null)}
+          onSave={(amount) => ops.setAmount({ sourceType: editing!.sourceType, sourceId: editing!.sourceId, dueDate: editing!.dueDate }, amount)}
+        />
+      )}
 
       {obligation && detail && (
         <PayScheduledSheet payment={paying} obligation={obligation} detail={detail} today={today} onClose={() => setPaying(null)} markPaid={ops.markPaid} />

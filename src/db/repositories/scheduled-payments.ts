@@ -1,7 +1,10 @@
 import Dexie from 'dexie'
 import type { ID, ISODate, ScheduledPayment, Transaction } from '@/domain/entities'
 import { debtScheduleSource } from '@/domain/debts'
-import { isObligationActive, paymentTypeFor, planMissingOccurrences } from '@/domain/scheduling'
+import { occurrenceId } from '@/domain/identity'
+import type { Satang } from '@/domain/money'
+import { occurrencesBetween } from '@/domain/recurrence'
+import { generationWindow, isObligationActive, paymentTypeFor, planMissingOccurrences, type ScheduleSource } from '@/domain/scheduling'
 import type { TransactionDraft } from '@/domain/transactions'
 import type { FinanceDatabase } from '../dexie'
 import { rethrowStorage } from '../errors'
@@ -25,7 +28,24 @@ export class PaymentAlreadySettledError extends Error {
   }
 }
 
-const KNOWN = [ScheduledPaymentNotFoundError, PaymentAlreadySettledError, ExpenseValidationError]
+/** A planned amount that cannot be set: not a positive amount, or the date is not on the rule. */
+export class PlannedAmountError extends Error {
+  readonly reason: 'amount_invalid' | 'not_planned'
+  constructor(reason: 'amount_invalid' | 'not_planned') {
+    super(`Cannot plan this amount: ${reason}`)
+    this.name = 'PlannedAmountError'
+    this.reason = reason
+  }
+}
+
+const KNOWN = [ScheduledPaymentNotFoundError, PaymentAlreadySettledError, ExpenseValidationError, PlannedAmountError]
+
+/** Which occurrence: by its natural key, so a month that is not generated yet can be planned too. */
+export interface OccurrenceRef {
+  sourceType: ScheduledPayment['sourceType']
+  sourceId: ID
+  dueDate: ISODate
+}
 
 /** Re-exported: the rule lives in domain/scheduling. */
 export { paymentTypeFor }
@@ -134,11 +154,13 @@ export function createScheduledPaymentsRepository(database: FinanceDatabase) {
           if (payment.status === 'skipped') throw new PaymentAlreadySettledError('skipped')
 
           const obligation = payment.sourceType === 'obligation' ? await database.recurringObligations.get(payment.sourceId) : undefined
-          const { type, debtId } = paymentTypeFor(payment, obligation)
+          const { type, debtId, toAccountId } = paymentTypeFor(payment, obligation)
           const { transaction } = await transactions.create(
             {
               ...draft,
               type,
+              // A planned transfer goes to the rule's account unless the user picked another one.
+              ...(type === 'transfer' ? { toAccountId: draft.toAccountId ?? toAccountId, categoryId: undefined } : {}),
               ...(debtId ? { debtId, categoryId: undefined } : { debtId: undefined }),
               scheduledPaymentId: payment.id,
             },
@@ -149,6 +171,52 @@ export function createScheduledPaymentsRepository(database: FinanceDatabase) {
           const paid: ScheduledPayment = { ...payment, status: 'paid', transactionId: transaction.id, paidDate: transaction.date, updatedAt: meta.now }
           await database.scheduledPayments.put(paid)
           return { status: 'paid', payment: paid, transaction }
+        })
+      } catch (error) {
+        return rethrowStorage(error, KNOWN)
+      }
+    },
+
+    /**
+     * Plan one occurrence's amount (this month's electricity bill came to 1,250).
+     * An unpaid occurrence takes the new amount; a date further ahead than the
+     * app has generated yet is created now with it — only if the date is on an
+     * active rule. Paid and skipped occurrences are history and are refused.
+     * Editing the rule later keeps this amount (see planRuleChange).
+     */
+    async setExpectedAmount(ref: OccurrenceRef, amountSatang: Satang, meta: { now: string; today: ISODate }): Promise<ScheduledPayment> {
+      if (!Number.isSafeInteger(amountSatang) || amountSatang <= 0) throw new PlannedAmountError('amount_invalid')
+      try {
+        return await database.transaction('rw', [database.scheduledPayments, database.recurringObligations, database.debts], async () => {
+          const stored = await database.scheduledPayments.where('[sourceType+sourceId+dueDate]').equals([ref.sourceType, ref.sourceId, ref.dueDate]).first()
+          if (stored) {
+            if (stored.status !== 'pending') throw new PaymentAlreadySettledError(stored.status)
+            if (stored.expectedAmountSatang === amountSatang) return stored
+            const changed: ScheduledPayment = { ...stored, expectedAmountSatang: amountSatang, updatedAt: meta.now }
+            await database.scheduledPayments.put(changed)
+            return changed
+          }
+          let source: ScheduleSource | null = null
+          if (ref.sourceType === 'obligation') source = (await database.recurringObligations.get(ref.sourceId)) ?? null
+          else {
+            const debt = await database.debts.get(ref.sourceId)
+            source = debt ? debtScheduleSource(debt) : null
+          }
+          const window = source ? generationWindow(source, meta.today) : null
+          const onRule = source && window && ref.dueDate >= window.from && occurrencesBetween(source.recurrence, ref.dueDate, ref.dueDate).includes(ref.dueDate)
+          if (!onRule || ref.dueDate < `${meta.today.slice(0, 7)}-01`) throw new PlannedAmountError('not_planned')
+          const created: ScheduledPayment = {
+            id: occurrenceId(ref.sourceType, ref.sourceId, ref.dueDate),
+            sourceType: ref.sourceType,
+            sourceId: ref.sourceId,
+            dueDate: ref.dueDate,
+            expectedAmountSatang: amountSatang,
+            status: 'pending',
+            createdAt: meta.now,
+            updatedAt: meta.now,
+          }
+          await database.scheduledPayments.add(created)
+          return created
         })
       } catch (error) {
         return rethrowStorage(error, KNOWN)

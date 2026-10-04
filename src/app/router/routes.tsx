@@ -43,6 +43,7 @@ export const routes: RouteObject[] = [
         errorElement: <RouteErrorBoundary inline />,
         children: [
           { index: true, lazy: async () => ({ Component: (await import('@/features/dashboard')).DashboardPage }) },
+          { path: 'plan', lazy: async () => ({ Component: (await import('@/features/plan')).PlanPage }) },
           { path: 'expenses', lazy: async () => ({ Component: (await import('@/features/expenses')).ExpensesPage }) },
           { path: 'transactions', lazy: async () => ({ Component: (await import('@/features/transactions')).TransactionsPage }) },
           { path: 'recurring', lazy: async () => ({ Component: (await import('@/features/recurring')).RecurringPage }) },

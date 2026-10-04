@@ -30,6 +30,7 @@ function testOps(): RecurringOps {
       scheduledPaymentsRepository.markPaid(paymentId, draft, attachments, { transactionId, now: stamp.now, newId }),
     skip: (paymentId) => scheduledPaymentsRepository.markSkipped(paymentId, stamp),
     unskip: (paymentId) => scheduledPaymentsRepository.markUnskipped(paymentId, stamp),
+    setAmount: (ref, amountSatang) => scheduledPaymentsRepository.setExpectedAmount(ref, amountSatang, stamp),
   }
 }
 

@@ -306,3 +306,77 @@ describe('debt-linked obligation (credit-card bill)', () => {
     expect(debts.items.find((i) => i.debt.id === 'cc')?.outstanding).toBe(0)
   })
 })
+
+describe('monthly plan: transfers, one-off items, amounts of single months', () => {
+  beforeEach(async () => {
+    await database.accounts.add(makeAccount({ id: 'savings', name: 'ออม', kind: 'investment' }))
+  })
+
+  it('a planned transfer is paid as a transfer to its account — never an expense', async () => {
+    await obligations.create(
+      rentDraft({ name: 'DCA', amountSatang: baht(700), categoryId: undefined, kind: 'transfer', toAccountId: 'savings', recurrence: { frequency: 'monthly', interval: 1, startDate: '2026-10-01', dayOfMonth: 1 } }),
+      { ...meta(), id: 'dca' },
+    )
+    const [first] = await paymentsOf('dca')
+    expect(first).toMatchObject({ dueDate: '2026-10-01', expectedAmountSatang: baht(700) })
+    const result = await scheduled.markPaid(first!.id, payDraft({ type: 'transfer', amountSatang: baht(700), categoryId: undefined }), [], { transactionId: 'tx-dca', now: meta().now, newId })
+    expect(result.transaction).toMatchObject({ type: 'transfer', accountId: 'bank', toAccountId: 'savings', amountSatang: baht(700), scheduledPaymentId: first!.id })
+    expect(result.transaction.categoryId).toBeUndefined()
+    expect((await snapshot()).totals.expense).toBe(0)
+  })
+
+  it('a transfer rule needs a different destination account', async () => {
+    const transfer = (toAccountId?: string) => rentDraft({ categoryId: undefined, kind: 'transfer', toAccountId })
+    await expect(obligations.create(transfer(), { ...meta(), id: 'x1' })).rejects.toMatchObject({ issues: ['to_account_required'] })
+    await expect(obligations.create(transfer('bank'), { ...meta(), id: 'x2' })).rejects.toMatchObject({ issues: ['same_account'] })
+    await expect(obligations.create(transfer('nope'), { ...meta(), id: 'x3' })).rejects.toBeInstanceOf(ObligationValidationError)
+  })
+
+  it('a one-off item creates exactly one occurrence', async () => {
+    await obligations.create(rentDraft({ name: 'ประกันรถ', recurrence: { frequency: 'monthly', interval: 1, startDate: '2026-11-15', dayOfMonth: 15, count: 1 } }), { ...meta(), id: 'once' })
+    expect((await paymentsOf('once')).map((p) => p.dueDate)).toEqual(['2026-11-15'])
+    await scheduled.generateMissing('2027-03-01', meta('2027-03-01'))
+    expect((await paymentsOf('once')).map((p) => p.dueDate)).toEqual(['2026-11-15'])
+  })
+
+  it('plans one month: an unpaid occurrence takes the amount; a month not generated yet is created', async () => {
+    await obligations.create(rentDraft(), { ...meta(), id: 'rent' })
+    const october = (await paymentsOf('rent')).find((p) => p.dueDate === '2026-10-06')!
+    await scheduled.setExpectedAmount({ sourceType: 'obligation', sourceId: 'rent', dueDate: '2026-10-06' }, baht(8_000), meta())
+    expect(await database.scheduledPayments.get(october.id)).toMatchObject({ expectedAmountSatang: baht(8_000), status: 'pending' })
+
+    const far = await scheduled.setExpectedAmount({ sourceType: 'obligation', sourceId: 'rent', dueDate: '2027-06-06' }, baht(8_200), meta())
+    expect(far).toMatchObject({ dueDate: '2027-06-06', status: 'pending', expectedAmountSatang: baht(8_200) })
+    // The app later generating that month keeps the planned amount.
+    await scheduled.generateMissing('2027-04-01', meta('2027-04-01'))
+    expect((await paymentsOf('rent')).filter((p) => p.dueDate === '2027-06-06').map((p) => p.expectedAmountSatang)).toEqual([baht(8_200)])
+  })
+
+  it('refuses a date that is not on the rule, a past month, a paid month and a bad amount', async () => {
+    await obligations.create(rentDraft(), { ...meta(), id: 'rent' })
+    const ref = (dueDate: string) => ({ sourceType: 'obligation' as const, sourceId: 'rent', dueDate })
+    await expect(scheduled.setExpectedAmount(ref('2027-06-07'), baht(1), meta())).rejects.toMatchObject({ reason: 'not_planned' })
+    await expect(scheduled.setExpectedAmount(ref('2026-08-06'), baht(1), meta())).rejects.toMatchObject({ reason: 'not_planned' })
+    await expect(scheduled.setExpectedAmount(ref('2026-10-06'), 0 as never, meta())).rejects.toMatchObject({ reason: 'amount_invalid' })
+    const september = (await paymentsOf('rent')).find((p) => p.dueDate === '2026-09-06')!
+    await scheduled.markPaid(september.id, payDraft(), [], { transactionId: 'tx-sep', now: meta().now, newId })
+    await expect(scheduled.setExpectedAmount(ref('2026-09-06'), baht(1), meta())).rejects.toBeInstanceOf(PaymentAlreadySettledError)
+  })
+
+  it('editing the rule keeps months planned by hand and months planned beyond the horizon', async () => {
+    await obligations.create(rentDraft(), { ...meta(), id: 'rent' })
+    await scheduled.setExpectedAmount({ sourceType: 'obligation', sourceId: 'rent', dueDate: '2026-11-06' }, baht(9_000), meta())
+    await scheduled.setExpectedAmount({ sourceType: 'obligation', sourceId: 'rent', dueDate: '2027-05-06' }, baht(7_900), meta())
+    await obligations.update('rent', rentDraft({ amountSatang: baht(8_100) }), meta())
+    const amounts = Object.fromEntries((await paymentsOf('rent')).map((p) => [p.dueDate, p.expectedAmountSatang]))
+    expect(amounts).toMatchObject({
+      '2026-10-06': baht(8_100),
+      '2026-11-06': baht(9_000),
+      '2026-12-06': baht(8_100),
+      '2027-05-06': baht(7_900),
+    })
+    // Moving the due day drops planned months that are no longer on the rule (the overdue September one is history and stays).
+    await obligations.update('rent', rentDraft({ amountSatang: baht(8_100), recurrence: { frequency: 'monthly', interval: 1, startDate: '2026-01-01', dayOfMonth: 10 } }), meta())
+    expect((await paymentsOf('rent')).filter((p) => p.status === 'pending').map((p) => p.dueDate)).toEqual(['2026-09-06', '2026-10-10', '2026-11-10', '2026-12-10'])
+  })
+})

@@ -40,7 +40,7 @@ export function PayScheduledSheet({ payment, obligation, detail, today, onClose,
     if (payment) setTransactionId(newId())
   }
 
-  const { type, debtId } = payment ? paymentTypeFor(payment, obligation) : { type: 'expense' as const, debtId: undefined }
+  const { type, debtId, toAccountId } = payment ? paymentTypeFor(payment, obligation) : { type: 'expense' as const, debtId: undefined, toAccountId: undefined }
   const income = obligation.kind === 'income'
 
   return (
@@ -101,6 +101,7 @@ export function PayScheduledSheet({ payment, obligation, detail, today, onClose,
               categoryId: obligation.categoryId,
               accountId: obligation.defaultAccountId,
               debtId,
+              toAccountId,
               date: today,
               description: obligation.name,
             }}

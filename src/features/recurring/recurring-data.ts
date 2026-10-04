@@ -32,7 +32,8 @@ import { t } from '@/lib/i18n'
 // Labels
 // ---------------------------------------------------------------------------
 
-export function frequencyLabel(rule: Pick<RecurrenceRule, 'frequency' | 'interval'>): string {
+export function frequencyLabel(rule: Pick<RecurrenceRule, 'frequency' | 'interval' | 'count'>): string {
+  if (rule.count === 1) return t('freq.once')
   const n = rule.interval
   switch (rule.frequency) {
     case 'weekly':
@@ -45,13 +46,15 @@ export function frequencyLabel(rule: Pick<RecurrenceRule, 'frequency' | 'interva
 }
 
 /** "/ เดือน", "/ 3 เดือน" — shown after the amount. */
-export function perLabel(rule: Pick<RecurrenceRule, 'frequency' | 'interval'>): string {
+export function perLabel(rule: Pick<RecurrenceRule, 'frequency' | 'interval' | 'count'>): string {
+  if (rule.count === 1) return ''
   if (rule.interval === 1) return t(`freq.per.${rule.frequency}`)
   return `/ ${rule.interval} ${t(`recurring.form.intervalUnit.${rule.frequency}`)}`
 }
 
 /** "ทุกเดือน วันที่ 6", "ทุกสัปดาห์ วันจันทร์", "ทุกปี วันที่ 15 มีนาคม". */
 export function scheduleLabel(rule: RecurrenceRule): string {
+  if (rule.count === 1) return t('freq.detail.once', { date: formatDate(rule.startDate, 'long') })
   const freq = frequencyLabel(rule)
   const startDay = Number(rule.startDate.slice(8, 10))
   switch (rule.frequency) {
@@ -150,6 +153,7 @@ export function buildRecurringModel(raw: RecurringRawData, filters: { filter: Re
   const month = today.slice(0, 7)
   const categories = new Map(raw.categories.map((c) => [c.id, c]))
   const debts = new Map(raw.debts.map((d) => [d.id, d]))
+  const accounts = new Map(raw.accounts.map((a) => [a.id, a]))
   // Payments to make only; expected income (salary…) lives on #/income.
   const live = raw.obligations.filter((o) => !o.archivedAt && !isIncomeObligation(o))
   const liveIds = new Set(live.map((o) => o.id))
@@ -188,7 +192,11 @@ export function buildRecurringModel(raw: RecurringRawData, filters: { filter: Re
       name: obligation.name,
       icon: category?.icon,
       isDebt: Boolean(obligation.debtId),
-      categoryLabel: debt ? t('recurring.detail.debt') : category?.name,
+      categoryLabel: debt
+        ? t('recurring.detail.debt')
+        : obligation.kind === 'transfer'
+          ? t('recurring.detail.transferTo', { account: (obligation.toAccountId && accounts.get(obligation.toAccountId)?.name) || '—' })
+          : category?.name,
       amount: obligation.expectedAmountSatang,
       perLabel: perLabel(obligation.recurrence),
       scheduleLabel: scheduleLabel(obligation.recurrence),

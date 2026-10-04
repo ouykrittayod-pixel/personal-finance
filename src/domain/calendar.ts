@@ -25,7 +25,15 @@ import type { ID, ISODate, RecurringObligation, ScheduledPayment, Transaction } 
 import { add, ZERO, type Satang } from './money'
 import { obligationKind, paymentState } from './scheduling'
 
-export type CalendarItemKind = 'expense' | 'income' | 'debt_payment' | 'transfer' | 'scheduled_expense' | 'scheduled_income' | 'scheduled_debt'
+export type CalendarItemKind =
+  | 'expense'
+  | 'income'
+  | 'debt_payment'
+  | 'transfer'
+  | 'scheduled_expense'
+  | 'scheduled_income'
+  | 'scheduled_debt'
+  | 'scheduled_transfer'
 export type CalendarItemStatus = 'actual' | 'upcoming' | 'overdue' | 'paid' | 'skipped'
 export type CalendarFilter = 'all' | 'income' | 'expense' | 'debt' | 'scheduled' | 'transfer'
 export const CALENDAR_FILTERS: readonly CalendarFilter[] = ['all', 'income', 'expense', 'debt', 'scheduled', 'transfer']
@@ -78,7 +86,7 @@ function scheduledKind(payment: ScheduledPayment, obligations: ReadonlyMap<ID, R
   const rule = obligations.get(payment.sourceId)
   if (!rule) return 'scheduled_expense'
   const kind = obligationKind(rule)
-  return kind === 'income' ? 'scheduled_income' : kind === 'debt' ? 'scheduled_debt' : 'scheduled_expense'
+  return kind === 'income' ? 'scheduled_income' : kind === 'debt' ? 'scheduled_debt' : kind === 'transfer' ? 'scheduled_transfer' : 'scheduled_expense'
 }
 
 function scheduledStatus(payment: ScheduledPayment, today: ISODate): CalendarItemStatus {
@@ -155,7 +163,7 @@ export function matchesCalendarFilter(item: Pick<CalendarItem, 'kind' | 'status'
     case 'scheduled':
       return item.kind.startsWith('scheduled_')
     case 'transfer':
-      return item.kind === 'transfer'
+      return item.kind === 'transfer' || item.kind === 'scheduled_transfer'
   }
 }
 

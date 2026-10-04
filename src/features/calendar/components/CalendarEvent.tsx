@@ -19,6 +19,7 @@ const VISUAL: Record<CalendarItemKind, { icon: LucideIcon; iconClass: string; to
   scheduled_expense: { icon: CalendarClock, iconClass: 'bg-info-muted text-info', tone: 'neutral', sign: 'none' },
   scheduled_income: { icon: CalendarClock, iconClass: 'bg-income-muted text-income', tone: 'neutral', sign: 'plus' },
   scheduled_debt: { icon: CreditCard, iconClass: 'bg-debt-muted text-debt', tone: 'neutral', sign: 'none' },
+  scheduled_transfer: { icon: ArrowLeftRight, iconClass: 'bg-neutral-muted text-foreground', tone: 'neutral', sign: 'none' },
 }
 
 const BADGE: Record<Exclude<CalendarItemStatus, 'actual'>, StatusKind> = { upcoming: 'pending', overdue: 'overdue', paid: 'paid', skipped: 'skipped' }

@@ -89,7 +89,7 @@ export function createDebtsRepository(database: FinanceDatabase) {
   const paymentsOf = (id: ID) => database.scheduledPayments.where('[sourceType+sourceId]').equals(['debt', id]).toArray()
 
   /** Bring a loan's installment occurrences in line with its (possibly changed) schedule. Card statements are left alone. */
-  async function syncSchedule(debt: Debt, meta: DebtMeta) {
+  async function syncSchedule(debt: Debt, meta: DebtMeta, previousAmount?: Satang) {
     if (isRevolving(debt)) return
     const existing = await paymentsOf(debt.id)
     const source = debtScheduleSource(debt)
@@ -97,7 +97,7 @@ export function createDebtsRepository(database: FinanceDatabase) {
       await database.scheduledPayments.bulkDelete(unpaidToRemove(existing, meta.today, 'future'))
       return
     }
-    const plan = planRuleChange(source, existing, meta.today)
+    const plan = planRuleChange(source, existing, meta.today, previousAmount)
     await database.scheduledPayments.bulkDelete(plan.remove)
     for (const change of plan.update) {
       await database.scheduledPayments.update(change.id, { expectedAmountSatang: change.expectedAmountSatang, updatedAt: meta.now })
@@ -169,7 +169,7 @@ export function createDebtsRepository(database: FinanceDatabase) {
         const result = buildDebt(draft, await context(id), { id, now: meta.now, today: meta.today, existing })
         if (!result.ok) throw new DebtValidationError(result.issues)
         await database.debts.put(result.debt)
-        await syncSchedule(result.debt, meta)
+        await syncSchedule(result.debt, meta, existing.scheduleEnabled ? existing.installmentSatang : undefined)
         return result.debt
       })
     },

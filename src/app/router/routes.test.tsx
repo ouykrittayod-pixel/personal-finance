@@ -19,7 +19,7 @@ function renderAt(path: string) {
   )
 }
 
-const EXPECTED_PATHS = ['/', '/expenses', '/transactions', '/recurring', '/debts', '/income', '/accounts', '/calendar', '/budget', '/analytics', '/settings']
+const EXPECTED_PATHS = ['/', '/plan', '/expenses', '/transactions', '/recurring', '/debts', '/income', '/accounts', '/calendar', '/budget', '/analytics', '/settings']
 
 describe('routes', () => {
   it('has a nav item for every required route', () => {
@@ -42,6 +42,8 @@ describe('routes', () => {
           ? t('accounts.title')
           : path === '/calendar'
             ? t('calendar.title')
+            : path === '/plan'
+              ? t('plan.title')
             : path === '/analytics'
               ? t('analytics.title')
               : t(labelKey)
@@ -49,11 +51,11 @@ describe('routes', () => {
   })
 
   it('marks the current page as active in every navigation (sidebar + bottom bar)', async () => {
-    renderAt('/budget')
-    await screen.findByRole('heading', { level: 1, name: t('nav.budget') })
-    const budgetLinks = screen.getAllByRole('link', { name: t('nav.budget') })
-    expect(budgetLinks).toHaveLength(2)
-    budgetLinks.forEach((link) => expect(link).toHaveAttribute('aria-current', 'page'))
+    renderAt('/plan')
+    await screen.findByRole('heading', { level: 1, name: t('plan.title') })
+    const planLinks = screen.getAllByRole('link', { name: t('nav.plan') })
+    expect(planLinks).toHaveLength(2)
+    planLinks.forEach((link) => expect(link).toHaveAttribute('aria-current', 'page'))
     screen.getAllByRole('link', { name: t('nav.dashboard') }).forEach((link) => expect(link).not.toHaveAttribute('aria-current'))
   })
 

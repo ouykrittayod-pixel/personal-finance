@@ -121,7 +121,7 @@ describe('schema v2 on a new database', () => {
     await database.open()
     expect(database.verno).toBe(LATEST_SCHEMA_VERSION)
     expect(LATEST_SCHEMA_VERSION).toBe(4)
-    expect(DATA_SCHEMA_VERSION).toBe(1)
+    expect(DATA_SCHEMA_VERSION).toBe(2)
     for (const table of SYNC_TABLES) expect(database.tables.map((t) => t.name)).toContain(table)
     await ensureSyncFoundation(database)
     const device = await database.syncSettings.get('device')
@@ -411,13 +411,13 @@ describe('collapse rules (pure)', () => {
 })
 
 describe('backup stays format v1, without sync internals', () => {
-  it('backups carry data schema 1 and no device id, outbox or tombstones', async () => {
+  it('backups carry the current data schema and no device id, outbox or tombstones', async () => {
     const database = fresh()
     await seedRepresentative(database)
     await ensureSyncFoundation(database)
     const backup = await createBackup(database, REP_NOW)
     expect(backup.formatVersion).toBe(1)
-    expect(backup.schemaVersion).toBe(1)
+    expect(backup.schemaVersion).toBe(DATA_SCHEMA_VERSION)
     expect(Object.keys(backup.data).sort()).toEqual(
       ['accounts', 'attachmentBlobs', 'attachments', 'budgets', 'categories', 'debts', 'recurringObligations', 'scheduledPayments', 'transactions'].sort(),
     )
