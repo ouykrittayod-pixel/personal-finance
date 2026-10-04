@@ -126,3 +126,17 @@ describe('an expense is money already spent: never dated in the future', () => {
     await expect(edit('2026-09-24')).resolves.toMatchObject({ amountSatang: baht(200), date: '2026-09-24' })
   })
 })
+
+describe('reconcile an account to its real balance', () => {
+  it('records the difference as one adjustment (never an expense), and nothing when it already matches', async () => {
+    await database.accounts.update('cash', { openingBalanceSatang: baht(500) })
+    await repo.createExpense(draft, [], meta('lunch')) // 500 − 185.50 = 314.50
+    const adjustment = await repo.reconcileBalance('cash', satang(48829), { id: 'adj-1', now: '2026-09-25T05:00:00.000Z', date: '2026-09-25' })
+    expect(adjustment).toMatchObject({ type: 'adjustment', accountId: 'cash', amountSatang: satang(17379), date: '2026-09-25' })
+    expect(adjustment?.categoryId).toBeUndefined()
+    expect(await repo.reconcileBalance('cash', satang(48829), { id: 'adj-2', now: '2026-09-25T06:00:00.000Z', date: '2026-09-25' })).toBeNull()
+    const down = await repo.reconcileBalance('cash', satang(10000), { id: 'adj-3', now: '2026-09-25T07:00:00.000Z', date: '2026-09-25' })
+    expect(down?.amountSatang).toBe(satang(10000 - 48829))
+    expect((await database.transactions.where('type').equals('expense').toArray()).map((tx) => tx.id)).toEqual(['lunch'])
+  })
+})

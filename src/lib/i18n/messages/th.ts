@@ -1283,6 +1283,18 @@ export const th = {
   'expenses.emptyHint': 'กด + แล้วใส่จำนวนเงิน เลือกหมวดและบัญชี บันทึกได้ในไม่กี่วินาที',
   'expenses.noMatch': 'ไม่พบรายจ่ายที่ตรงกับตัวกรอง',
   'expenses.noMatchHint': 'ลองเปลี่ยนช่วงวันที่ หรือล้างตัวกรอง',
+  'accounts.reconcile.action': 'ปรับยอดให้ตรงกับยอดจริง',
+  'accounts.reconcile.title': 'ปรับยอดให้ตรงกับยอดจริง',
+  'accounts.reconcile.hint': 'ตอนนี้ในแอปคือ {current} ใส่ยอดที่เห็นในแอปธนาคารตอนนี้',
+  'accounts.reconcile.hintOwed': 'ตอนนี้ในแอปค้างอยู่ {current} ใส่ยอดค้างจริงตอนนี้',
+  'accounts.reconcile.actual': 'ยอดคงเหลือจริง',
+  'accounts.reconcile.actualOwed': 'ยอดค้างจริง',
+  'accounts.reconcile.diffUp': 'จะบันทึกการปรับยอด +{amount} วันนี้ (ไม่นับเป็นรายรับ)',
+  'accounts.reconcile.diffDown': 'จะบันทึกการปรับยอด −{amount} วันนี้ (ไม่นับเป็นรายจ่าย)',
+  'accounts.reconcile.note': 'ส่วนต่างเป็นเงินที่ไม่ได้บันทึกไว้ เช่น ใช้จ่ายรายวันในอดีต ระบบบันทึกเป็น "ปรับยอด" ไม่กระทบรายจ่าย งบ หรือรายงาน',
+  'accounts.reconcile.save': 'บันทึกยอดจริง',
+  'accounts.reconcile.done': 'ยอด{name}เป็น {amount} แล้ว',
+  'accounts.reconcile.alreadyMatches': 'ยอดตรงกับยอดจริงอยู่แล้ว',
 } as const satisfies Record<string, string>
 
 export type Messages = { readonly [K in keyof typeof th]: string }
