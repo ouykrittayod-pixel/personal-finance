@@ -45,7 +45,7 @@ export interface ApplyResult {
  */
 export async function applyMergedSnapshot(database: FinanceDatabase, merged: DriveSnapshot, mark: number, now: string): Promise<ApplyResult> {
   const tables = syncedTables(database)
-  return database.transaction('rw', [...tables, database.syncOutbox, database.syncTombstones], async (tx) => {
+  return database.transaction('rw', [...tables, database.attachmentBlobs, database.syncOutbox, database.syncTombstones], async (tx) => {
     suppressSyncTracking(tx.idbtrans)
     const recent = await database.syncOutbox.where('seq').above(mark).toArray()
     const keep = new Set(recent.map((entry) => `${entry.tableName}\u0000${entry.recordId}`))
