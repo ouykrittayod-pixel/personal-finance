@@ -68,7 +68,18 @@ export function QuickEntryProvider({ children }: { children: ReactNode }) {
       tone: 'neutral',
       onSelect: () => api.openTransfer(),
     },
-    { id: 'bill', label: t('quickAdd.bill'), icon: ReceiptText, tone: 'info', disabled: true },
+    {
+      id: 'bill',
+      label: t('quickAdd.bill'),
+      description: t('quickAdd.billHint'),
+      icon: ReceiptText,
+      tone: 'info',
+      // Unpaid and overdue bills of this month (with "จ่ายแล้ว" on each) live on the plan page.
+      onSelect: () => {
+        setMenuOpen(false)
+        window.location.hash = '#/plan'
+      },
+    },
     {
       id: 'debt',
       label: t('quickAdd.debt'),

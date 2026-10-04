@@ -34,6 +34,7 @@ const FIELD_OF: Partial<Record<DraftIssue, [FormField, MessageKey]>> = {
   principal_exceeds_outstanding: ['breakdown', 'txForm.error.principal_exceeds_outstanding'],
   payment_before_opening: ['date', 'txForm.error.payment_before_opening'],
   date_invalid: ['date', 'expense.error.date_invalid'],
+  date_in_future: ['date', 'expense.error.date_in_future'],
 }
 
 /** Domain issues → Thai field messages. Unmapped issues become a general message. */

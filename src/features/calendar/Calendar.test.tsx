@@ -172,18 +172,19 @@ describe('Calendar — desktop grid', () => {
   })
 
   it('renders a 7-column month with limited items per day and opens the day detail', async () => {
+    // Expenses are money already spent: a busy day in the past (today is 12 Sep).
     for (let n = 0; n < 5; n++) {
-      await transactionsRepository.createExpense({ amountSatang: baht(10 + n), accountId: 'cash', categoryId: 'food', date: '2026-09-14', description: `กาแฟ ${n}` }, [], { id: `c${n}`, now, newId })
+      await transactionsRepository.createExpense({ amountSatang: baht(10 + n), accountId: 'cash', categoryId: 'food', date: '2026-09-09', description: `กาแฟ ${n}` }, [], { id: `c${n}`, now, newId })
     }
     const { user, router } = renderCalendar()
     const grid = await screen.findByRole('grid', { name: t('calendar.grid', { month: 'กันยายน 2026' }) })
     expect(within(grid).getAllByRole('columnheader')).toHaveLength(7)
-    const busy = within(grid).getByRole('button', { name: new RegExp(t('calendar.dayLabel', { date: '14 กันยายน 2026', count: 5 })) })
+    const busy = within(grid).getByRole('button', { name: new RegExp(t('calendar.dayLabel', { date: '9 กันยายน 2026', count: 5 })) })
     expect(busy).toHaveTextContent(t('calendar.more', { count: 2 }))
     const today = within(grid).getByRole('button', { name: new RegExp(t('calendar.todayMark')) })
     expect(today).toHaveAttribute('aria-current', 'date')
     await user.click(busy)
-    await waitFor(() => expect(router.state.location.search).toBe('?day=2026-09-14'))
-    expect(within(await screen.findByRole('dialog', { name: '14 กันยายน 2026' })).getAllByRole('link')).toHaveLength(5)
+    await waitFor(() => expect(router.state.location.search).toBe('?day=2026-09-09'))
+    expect(within(await screen.findByRole('dialog', { name: '9 กันยายน 2026' })).getAllByRole('link')).toHaveLength(5)
   })
 })

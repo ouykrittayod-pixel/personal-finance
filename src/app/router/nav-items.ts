@@ -8,8 +8,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard, bottomNav: true },
   // The monthly plan replaces budget in the bottom bar: planning next month's bills is the app's main job.
   { path: '/plan', labelKey: 'nav.plan', icon: CalendarRange, bottomNav: true },
-  { path: '/expenses', labelKey: 'nav.expenses', icon: Receipt },
-  { path: '/transactions', labelKey: 'nav.transactions', icon: ArrowLeftRight, bottomNav: true },
+  // Daily expenses are recorded and checked every day: in the bottom bar (the full ledger stays in the menu).
+  { path: '/expenses', labelKey: 'nav.expenses', icon: Receipt, bottomNav: true },
+  { path: '/transactions', labelKey: 'nav.transactions', icon: ArrowLeftRight },
   { path: '/recurring', labelKey: 'nav.recurring', icon: Repeat },
   { path: '/debts', labelKey: 'nav.debts', icon: CreditCard },
   { path: '/income', labelKey: 'nav.income', icon: HandCoins },
