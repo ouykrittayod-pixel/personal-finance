@@ -8,7 +8,7 @@
  * Without a Client ID (and always in tests) the app runs without Google Drive,
  * keeping data in this browser only.
  */
-const BUILT_IN_CLIENT_ID = ''
+const BUILT_IN_CLIENT_ID = '969655731330-apd05ivah42mdnnn7uc13eqrc1hpab98.apps.googleusercontent.com'
 
 export const GOOGLE_CLIENT_ID: string = import.meta.env.MODE === 'test' ? '' : (import.meta.env.VITE_GOOGLE_CLIENT_ID || BUILT_IN_CLIENT_ID)
 
