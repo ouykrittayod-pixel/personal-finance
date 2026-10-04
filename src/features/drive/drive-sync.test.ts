@@ -303,7 +303,7 @@ describe('Drive connection on a device', () => {
     expect(drive.getState()).toMatchObject({ status: 'synced', sheetError: false, sheetUrl: 'https://docs.google.com/spreadsheets/d/s1' })
   })
 
-  it('a home-screen app coming back from Google's sign-in page finishes connecting by itself', async () => {
+  it('a home-screen app coming back from the Google sign-in page finishes connecting by itself', async () => {
     const me = account('me')
     await seedDrive(me)
     const database = await device()
@@ -322,7 +322,7 @@ describe('Drive connection on a device', () => {
     expect(await database.transactions.get('salary')).toBeDefined()
   })
 
-  it('a refusal on Google's page shows why, without connecting', async () => {
+  it('a refusal on the Google page shows why, without connecting', async () => {
     const me = account('me')
     const database = await device()
     const google = fakeGoogle(me)
