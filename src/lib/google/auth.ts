@@ -1,30 +1,31 @@
 /**
- * Google sign-in for a browser-only app (Google Identity Services token model).
+ * Google sign-in for a browser-only app (OAuth 2.0 token by redirect).
  *
- * - An access token lasts about an hour. It is cached in localStorage so a
- *   reload within that hour needs no new sign-in.
- * - A new token needs the Google pop-up, which browsers only allow right after
- *   a tap. So when the cached token has expired, sync pauses and the app asks
- *   for one tap ("เชื่อมต่ออีกครั้ง"); the app itself keeps working from the
+ * - Signing in leaves for Google's consent page and comes back to the app with
+ *   an access token (see oauth-redirect). This works the same in Safari, in an
+ *   app opened from the home screen, and in desktop browsers — no pop-up, so
+ *   no pop-up blocker can get in the way.
+ * - The token lasts about an hour. It is cached in localStorage so reloads
+ *   within that hour need no new sign-in. When it expires, sync pauses and the
+ *   app asks for one tap ("เชื่อมต่ออีกครั้ง"); the app keeps working from its
  *   cache meanwhile.
  * - There is no refresh token and no client secret anywhere (that would need a server).
  */
 import { GOOGLE_CLIENT_ID, GOOGLE_SCOPES, REQUIRED_SCOPES } from './config'
-import { isStandaloneApp, startRedirectSignIn } from './oauth-redirect'
+import { startRedirectSignIn } from './oauth-redirect'
 
-const GIS_SRC = 'https://accounts.google.com/gsi/client'
 const TOKEN_KEY = 'pf-google-token'
 /** Treat a token as expired a little early, so a request never starts with one about to lapse. */
 const EXPIRY_MARGIN_MS = 2 * 60_000
 
 export type AuthErrorReason =
-  /** No valid token and no tap to open the Google pop-up: ask the user. */
+  /** No valid token: ask the user to tap and sign in. */
   | 'sign_in_required'
-  /** The user closed the pop-up or declined. */
+  /** The user declined on Google's page. */
   | 'cancelled'
   /** The user did not allow access to the app's Drive folder. */
   | 'scope_denied'
-  /** Google's sign-in script could not load (offline or blocked). */
+  /** Google could not be reached. */
   | 'unavailable'
 
 export class GoogleAuthError extends Error {
@@ -45,33 +46,6 @@ export interface GoogleUser {
 interface StoredToken {
   accessToken: string
   expiresAt: number
-}
-
-interface TokenResponse {
-  access_token?: string
-  expires_in?: number | string
-  scope?: string
-  error?: string
-}
-interface TokenClient {
-  requestAccessToken(overrides?: { prompt?: string; login_hint?: string }): void
-}
-interface GoogleAccounts {
-  oauth2: {
-    initTokenClient(config: {
-      client_id: string
-      scope: string
-      callback: (response: TokenResponse) => void
-      error_callback?: (error: { type?: string }) => void
-    }): TokenClient
-    hasGrantedAllScopes(response: TokenResponse, ...scopes: string[]): boolean
-    revoke(token: string, done?: () => void): void
-  }
-}
-declare global {
-  interface Window {
-    google?: { accounts?: GoogleAccounts }
-  }
 }
 
 function readToken(): StoredToken | null {
@@ -95,30 +69,8 @@ function writeToken(token: StoredToken | null) {
 }
 
 let memoryToken: StoredToken | null = null
-let gisLoading: Promise<GoogleAccounts> | null = null
 
-function loadGis(): Promise<GoogleAccounts> {
-  if (window.google?.accounts?.oauth2) return Promise.resolve(window.google.accounts)
-  gisLoading ??= new Promise<GoogleAccounts>((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = GIS_SRC
-    script.async = true
-    script.onload = () => (window.google?.accounts?.oauth2 ? resolve(window.google.accounts) : reject(new GoogleAuthError('unavailable')))
-    script.onerror = () => reject(new GoogleAuthError('unavailable'))
-    document.head.append(script)
-  }).catch((error: unknown) => {
-    gisLoading = null
-    throw error
-  })
-  return gisLoading
-}
-
-/** Load Google's script ahead of time, so the pop-up opens straight from the user's tap. */
-export function preloadGoogleSignIn(): void {
-  void loadGis().catch(() => undefined)
-}
-
-/** The cached access token if it is still valid, else null. Never opens a pop-up. */
+/** The cached access token if it is still valid, else null. Never leaves the page. */
 export function currentAccessToken(now: number = Date.now()): string | null {
   const token = memoryToken ?? readToken()
   if (!token || token.expiresAt - EXPIRY_MARGIN_MS <= now) return null
@@ -133,8 +85,8 @@ export function forgetAccessToken(): void {
 }
 
 /**
- * Keep a token that came back from a redirect sign-in. Returns an error code
- * when the user did not grant the app's Drive folder.
+ * Keep a token that came back from Google. Returns an error code when the
+ * user did not grant the app's Drive folder.
  */
 export function storeRedirectToken(accessToken: string, expiresIn: number, scope: string): string | undefined {
   const granted = new Set(scope.split(/\s+/))
@@ -146,30 +98,11 @@ export function storeRedirectToken(accessToken: string, expiresIn: number, scope
 }
 
 /**
- * Get a token from Google. Must be called from a tap/click handler.
- * - In a browser tab: Google's pop-up.
- * - In an app opened from the home screen (pop-ups cannot report back there):
- *   leaves for Google's page and comes back with the token (see oauth-redirect).
+ * Sign in: leaves for Google's page (call from a tap). The returned promise
+ * never settles — the app reloads when Google sends the user back.
  */
-export async function requestAccessToken(options: { loginHint?: string; consent?: boolean } = {}): Promise<string> {
-  if (isStandaloneApp()) return startRedirectSignIn({ clientId: GOOGLE_CLIENT_ID, scopes: GOOGLE_SCOPES, loginHint: options.loginHint, consent: options.consent })
-  const accounts = await loadGis()
-  return new Promise<string>((resolve, reject) => {
-    const client = accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: GOOGLE_SCOPES.join(' '),
-      callback: (response) => {
-        if (response.error || !response.access_token) return reject(new GoogleAuthError(response.error === 'access_denied' ? 'cancelled' : 'sign_in_required'))
-        if (!accounts.oauth2.hasGrantedAllScopes(response, ...REQUIRED_SCOPES)) return reject(new GoogleAuthError('scope_denied'))
-        const token = { accessToken: response.access_token, expiresAt: Date.now() + Number(response.expires_in ?? 3600) * 1000 }
-        memoryToken = token
-        writeToken(token)
-        resolve(token.accessToken)
-      },
-      error_callback: () => reject(new GoogleAuthError('cancelled')),
-    })
-    client.requestAccessToken({ prompt: options.consent ? 'consent' : '', ...(options.loginHint ? { login_hint: options.loginHint } : {}) })
-  })
+export function requestAccessToken(options: { loginHint?: string; consent?: boolean } = {}): Promise<string> {
+  return startRedirectSignIn({ clientId: GOOGLE_CLIENT_ID, scopes: GOOGLE_SCOPES, loginHint: options.loginHint, consent: options.consent })
 }
 
 /** Which Google account the token belongs to. */
@@ -191,8 +124,11 @@ export async function revokeAccess(): Promise<void> {
   forgetAccessToken()
   if (!token) return
   try {
-    const accounts = await loadGis()
-    await new Promise<void>((resolve) => accounts.oauth2.revoke(token.accessToken, resolve))
+    await fetch('https://oauth2.googleapis.com/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token: token.accessToken }),
+    })
   } catch {
     // Offline: the token expires by itself within the hour.
   }

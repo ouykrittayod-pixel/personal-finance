@@ -236,10 +236,12 @@ Drive holds the data set; a device only caches it. Nothing passes through a serv
   (`personal-finance-data.json`, `src/features/drive/remote-format.ts`, same strict record schemas as backups, plus
   tombstones) and one file per receipt (`attachment-<id>`). The app cannot see any other Drive file. `drive.file` is
   requested for the coming read-only Google Sheet; `openid email` identifies the account.
-- **Sign-in:** Google Identity Services token model (`src/lib/google/auth.ts`). An access token lasts ~1 hour and is
-  cached in `localStorage`; a new one needs Google's pop-up, which browsers allow only after a tap — so when it expires
-  the header chip says "แตะเพื่อเชื่อมต่อ" and sync waits; the app keeps working from the cache. No refresh token,
-  no client secret.
+- **Sign-in:** OAuth 2.0 token by full-page redirect (`src/lib/google/auth.ts`, `oauth-redirect.ts`) — no pop-up, so
+  it works the same in Safari, in a home-screen app and on desktop. Google sends the browser back to the app's address
+  with the token in the URL fragment (random `state` checked); `src/app/oauth-return.ts` takes it out before the router
+  starts. The token lasts ~1 hour and is cached in `localStorage`; when it expires the header chip says
+  "แตะเพื่อเชื่อมต่อ" and sync waits, while the app keeps working from the cache. No refresh token, no client secret.
+  The app address must be in the OAuth client's *Authorized redirect URIs* (and *JavaScript origins*).
 - **Sync** (`src/features/drive/sync-engine.ts`, rules in `src/domain/drive-merge.ts`): read cache → read Drive file →
   merge → upload if Drive is behind (after checking the file version is unchanged; retried on conflict) → write the
   merge back to the cache in one untracked transaction (records edited during the pass are kept for the next one) →

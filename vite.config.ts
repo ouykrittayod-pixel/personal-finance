@@ -56,13 +56,14 @@ function assertNoSecretsInClientEnv(mode: string) {
  */
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' https://accounts.google.com/gsi/client",
-  // Inline styles: React style attributes and the chart theme <style>; Google's sign-in button styles.
-  "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+  "script-src 'self'",
+  // Inline styles: React style attributes and the chart theme <style>.
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self' https://www.googleapis.com https://sheets.googleapis.com https://oauth2.googleapis.com https://accounts.google.com/gsi/",
-  'frame-src https://accounts.google.com/gsi/',
+  // Google sign-in itself is a page navigation (not limited by CSP); these are the API calls.
+  "connect-src 'self' https://www.googleapis.com https://sheets.googleapis.com https://oauth2.googleapis.com",
+  "frame-src 'none'",
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",
