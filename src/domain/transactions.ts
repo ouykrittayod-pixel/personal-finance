@@ -226,8 +226,9 @@ export interface BuildMeta {
  * UTC day, because the user's own "today" can be a day ahead of UTC (UTC+14 at
  * most). Forms limit the picker to the user's today; this is the storage guard.
  */
-export function latestExpenseDate(now: string): ISODate {
-  return addDays(now.slice(0, 10), 1)
+export function latestExpenseDate(now: string): ISODate | undefined {
+  const day = now.slice(0, 10)
+  return isCalendarDate(day) ? addDays(day, 1) : undefined
 }
 
 export type BuildResult = { ok: true; transaction: Transaction } | { ok: false; issues: DraftIssue[] }

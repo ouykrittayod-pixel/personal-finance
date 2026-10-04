@@ -8,7 +8,7 @@
  * card later is a debt payment and adds nothing here.
  */
 import { describeTransaction } from '@/components/finance/describe-transaction'
-import type { Category, ID, ISODate, Transaction } from '@/domain/entities'
+import type { Category, ISODate, Transaction } from '@/domain/entities'
 import { compareNewestFirst, groupByDate, inRange, matchesSearch, normalizeSearch, type DateRange } from '@/domain/ledger'
 import { add, ratioBps, tryParseBaht, ZERO, type Satang } from '@/domain/money'
 import { addDays } from '@/domain/recurrence'
