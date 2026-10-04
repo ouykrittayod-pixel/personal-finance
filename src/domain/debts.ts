@@ -36,7 +36,6 @@ import { isValidDate, type RecurrenceRule } from './recurrence'
 import { accountEffects } from './transactions'
 
 export const REVOLVING_KINDS: ReadonlySet<DebtKind> = new Set(['credit_card'])
-export const LOAN_KINDS: readonly DebtKind[] = ['mortgage', 'personal_loan', 'car_loan', 'installment', 'student_loan', 'informal', 'other']
 
 export const isRevolving = (debt: Pick<Debt, 'kind'>) => REVOLVING_KINDS.has(debt.kind)
 export const isDebtActive = (debt: Pick<Debt, 'archivedAt' | 'status'>) => !debt.archivedAt && debt.status === 'active'

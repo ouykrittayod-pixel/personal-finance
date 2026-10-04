@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PagePlaceholder } from '@/components/PagePlaceholder'
 import { BackupCard, ExportCard, RestoreCard } from '@/features/backup'
 import { CategoriesCard } from '@/features/categories'
-import { CloudCard } from '@/features/cloud'
 import { SetupSettingsCard } from '@/features/setup'
 import { getStorageEstimate, type StorageEstimate } from '@/db/persistence'
 import { DATA_SCHEMA_VERSION } from '@/db/schema'
@@ -34,7 +33,6 @@ export function SettingsPage() {
       <BackupCard />
       <RestoreCard />
       <ExportCard />
-      <CloudCard />
       <Card>
         <CardHeader>
           <CardTitle>

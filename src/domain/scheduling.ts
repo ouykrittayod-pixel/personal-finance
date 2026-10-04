@@ -253,11 +253,6 @@ export function daysOverdue(payment: Pick<ScheduledPayment, 'status' | 'dueDate'
   return isOverdue(payment, today) ? daysBetween(payment.dueDate, today) : 0
 }
 
-/** Days until due (negative when overdue). */
-export function daysUntilDue(payment: Pick<ScheduledPayment, 'dueDate'>, today: ISODate): number {
-  return daysBetween(today, payment.dueDate)
-}
-
 const byDue = (a: ScheduledPayment, b: ScheduledPayment) => a.dueDate.localeCompare(b.dueDate) || a.id.localeCompare(b.id)
 
 export interface ObligationStatus {
@@ -281,11 +276,6 @@ export function obligationStatus(payments: readonly ScheduledPayment[], today: I
     overdueCount: overdue.length,
     lastPaid,
   }
-}
-
-/** Occurrences for a date range — the query a calendar needs (one source of truth). */
-export function paymentsBetween(payments: readonly ScheduledPayment[], start: ISODate, end: ISODate): ScheduledPayment[] {
-  return payments.filter((p) => p.dueDate >= start && p.dueDate <= end).sort(byDue)
 }
 
 // ---------------------------------------------------------------------------
@@ -327,8 +317,6 @@ export function monthlyObligationSummary(
   return { due, paid, outstanding, overdueEarlier, activeCount: obligations.filter(isObligationActive).length }
 }
 
-/** First date of the generation horizon's end, for callers that need the window (e.g. the dashboard). */
-export const horizonEnd = (today: ISODate) => addMonthsClamped(today, SCHEDULE_HORIZON_MONTHS)
 export const dueSoonUntil = (today: ISODate) => addDays(today, DUE_SOON_DAYS)
 
 /**

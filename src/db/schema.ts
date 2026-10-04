@@ -60,6 +60,12 @@ export const SCHEMA_VERSIONS: readonly SchemaVersion[] = [
     version: 3,
     stores: { keyring: 'kid' },
   },
+  {
+    // Encrypted Supabase cloud removed (data will sync through the user's Google Drive instead):
+    // drop the unused keyring table. Version 3 stays as shipped; databases that reached it upgrade here.
+    version: 4,
+    stores: { keyring: null },
+  },
 ]
 
 /** IndexedDB (Dexie) version: local storage layout, including device-only tables. */

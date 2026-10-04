@@ -55,10 +55,6 @@ export function countsAsSpending(tx: Pick<Transaction, 'type'>): boolean {
   return tx.type === 'expense'
 }
 
-export function countsAsIncome(tx: Pick<Transaction, 'type'>): boolean {
-  return tx.type === 'income'
-}
-
 export type TransactionIssue =
   | 'amount_not_integer'
   | 'amount_must_be_positive'
@@ -183,7 +179,6 @@ export type DraftIssue =
   | 'date_invalid'
   | 'type_change_not_allowed'
   | TransactionIssue
-export type ExpenseIssue = DraftIssue
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/
 
@@ -207,7 +202,6 @@ export interface DraftContext {
   /** Needed for debt payments: the debt must exist (its kind decides the balance model). */
   debts?: ReadonlyMap<ID, { kind: DebtKind; linkedAccountId?: ID; openingDate: ISODate }>
 }
-export type ExpenseContext = DraftContext
 
 export interface BuildMeta {
   id: ID

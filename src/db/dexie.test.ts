@@ -40,6 +40,26 @@ describe('schema', () => {
     expect(new Set(versions).size).toBe(versions.length)
   })
 
+  it('upgrades a v3 database to v4: drops the unused keyring table and keeps the data', async () => {
+    const name = `test-v3-${crypto.randomUUID()}`
+    const v3 = new Dexie(name)
+    for (const { version, stores } of SCHEMA_VERSIONS.filter((s) => s.version <= 3)) v3.version(version).stores(stores)
+    await v3.open()
+    await v3.table('meta').put({ key: 'probe', value: 'kept' })
+    await v3.table('keyring').put({ kid: 'old-key' })
+    v3.close()
+
+    const upgraded = new FinanceDatabase(name)
+    await upgraded.open()
+    try {
+      expect(upgraded.verno).toBe(4)
+      expect(upgraded.tables.map((t) => t.name)).not.toContain('keyring')
+      expect(await upgraded.meta.get('probe')).toEqual({ key: 'probe', value: 'kept' })
+    } finally {
+      await upgraded.delete()
+    }
+  })
+
   it('opens at the latest version with every table', () => {
     expect(database.verno).toBe(LATEST_SCHEMA_VERSION)
     expect(database.tables.map((t) => t.name).sort()).toEqual(
@@ -58,7 +78,6 @@ describe('schema', () => {
         'syncTombstones',
         'syncState',
         'syncSettings',
-        'keyring',
       ].sort(),
     )
   })

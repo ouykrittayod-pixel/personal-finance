@@ -27,11 +27,6 @@ const devRoutes: RouteObject[] = import.meta.env.DEV
         path: 'dev/integrity',
         lazy: async () => ({ Component: (await import('@/app/dev/IntegrityPage')).IntegrityPage }),
       },
-      {
-        // Phase 19 encrypted-cloud proof with SYNTHETIC data (development only).
-        path: 'dev/cloud',
-        lazy: async () => ({ Component: (await import('@/app/dev/CloudLabPage')).CloudLabPage }),
-      },
     ]
   : []
 

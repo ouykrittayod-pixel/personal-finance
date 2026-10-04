@@ -159,8 +159,4 @@ export function describeItem(item: CalendarItem): string {
   return `${kindLabel(item.kind)} ${item.title} ${baht(item.amountSatang)} บาท${tail}`
 }
 
-/** Money direction for display: + for income, − for money out, none for transfers. */
-export const signOf = (kind: CalendarItemKind): 'in' | 'out' | 'move' =>
-  kind === 'income' || kind === 'scheduled_income' ? 'in' : kind === 'transfer' ? 'move' : 'out'
-
 export type { CalendarFilter, CalendarItem, ID }
