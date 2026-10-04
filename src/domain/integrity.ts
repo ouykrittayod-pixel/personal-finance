@@ -302,6 +302,8 @@ export function auditIntegrity(s: IntegritySnapshot): IntegrityReport {
     if (rule.defaultAccountId !== undefined && !accounts.has(rule.defaultAccountId)) report('orphan', t, rule.id, 'account_missing')
     if (rule.categoryId !== undefined && !categories.has(rule.categoryId)) report('orphan', t, rule.id, 'category_missing')
     if (rule.debtId !== undefined && !debts.has(rule.debtId)) report('orphan', t, rule.id, 'debt_missing')
+    if (rule.toAccountId !== undefined && !accounts.has(rule.toAccountId)) report('orphan', t, rule.id, 'to_account_missing')
+    if (rule.kind === 'transfer' && rule.toAccountId === undefined) report('recurring', t, rule.id, 'transfer_without_account')
     const category = rule.categoryId ? categories.get(rule.categoryId) : undefined
     if (category && !rule.debtId && category.kind !== (rule.kind === 'income' ? 'income' : 'expense')) report('recurring', t, rule.id, 'category_kind_mismatch')
   }

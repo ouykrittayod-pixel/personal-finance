@@ -33,8 +33,10 @@ export {
   createScheduledPaymentsRepository,
   PaymentAlreadySettledError,
   paymentTypeFor,
+  PlannedAmountError,
   ScheduledPaymentNotFoundError,
   type MarkPaidMeta,
+  type OccurrenceRef,
   type MarkPaidResult,
 } from './scheduled-payments'
 export {

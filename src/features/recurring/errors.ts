@@ -1,9 +1,9 @@
 import { StorageError } from '@/db/errors'
-import { ObligationNotFoundError, ObligationValidationError, PaymentAlreadySettledError } from '@/db/repositories'
+import { ObligationNotFoundError, ObligationValidationError, PaymentAlreadySettledError, PlannedAmountError } from '@/db/repositories'
 import type { ObligationIssue } from '@/domain/scheduling'
 import { t, type MessageKey } from '@/lib/i18n'
 
-export type ObligationField = 'name' | 'amount' | 'category' | 'account' | 'debt' | 'schedule' | 'startDate' | 'endDate'
+export type ObligationField = 'name' | 'amount' | 'category' | 'account' | 'toAccount' | 'debt' | 'schedule' | 'startDate' | 'endDate'
 
 export interface ObligationErrors {
   fields: Partial<Record<ObligationField, string>>
@@ -23,6 +23,9 @@ const FIELD_OF: Record<ObligationIssue, [ObligationField, MessageKey]> = {
   pay_from_liability: ['account', 'txForm.error.pay_from_liability'],
   debt_not_found: ['debt', 'recurring.error.debt_not_found'],
   debt_has_own_schedule: ['debt', 'recurring.error.debt_has_own_schedule'],
+  to_account_required: ['toAccount', 'recurring.error.to_account_required'],
+  unknown_to_account: ['toAccount', 'recurring.error.to_account_required'],
+  same_account: ['toAccount', 'recurring.error.same_account'],
   frequency_invalid: ['schedule', 'recurring.error.interval_invalid'],
   interval_invalid: ['schedule', 'recurring.error.interval_invalid'],
   day_of_month_invalid: ['schedule', 'recurring.error.day_of_month_invalid'],
@@ -53,6 +56,7 @@ export function obligationFailureToErrors(error: unknown): ObligationErrors {
 export function actionFailureMessage(error: unknown): string {
   if (error instanceof PaymentAlreadySettledError) return t(error.status === 'paid' ? 'recurring.pay.alreadyPaid' : 'recurring.pay.alreadySkipped')
   if (error instanceof ObligationNotFoundError) return t('recurring.error.not_found')
+  if (error instanceof PlannedAmountError) return t(error.reason === 'amount_invalid' ? 'expense.error.amount_must_be_positive' : 'plan.error.not_planned')
   if (error instanceof StorageError) return t(`expense.error.${error.kind}`)
   return t('recurring.toast.failed')
 }

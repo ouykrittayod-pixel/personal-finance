@@ -127,7 +127,7 @@ export function createRecurringObligationsRepository(database: FinanceDatabase) 
         if (!result.ok) throw new ObligationValidationError(result.issues)
         await database.recurringObligations.put(result.obligation)
 
-        const plan = planRuleChange(result.obligation, await paymentsOf(id), meta.today)
+        const plan = planRuleChange(result.obligation, await paymentsOf(id), meta.today, existing.expectedAmountSatang)
         await database.scheduledPayments.bulkDelete(plan.remove)
         for (const change of plan.update) {
           await database.scheduledPayments.update(change.id, { expectedAmountSatang: change.expectedAmountSatang, updatedAt: meta.now })

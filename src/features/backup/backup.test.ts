@@ -381,6 +381,16 @@ describe('validation rejects the whole file (and never writes)', () => {
     ).toBe('unsupported_version')
   })
 
+  it('reads files written with an older data schema (version 1 data is valid version 2 data)', async () => {
+    expect(
+      rejectionOf(
+        await tampered((b) => {
+          b.schemaVersion = 1
+        }),
+      ),
+    ).toBeUndefined()
+  })
+
   it('wrong currency or calendar, missing collection, counts that do not match', async () => {
     expect(
       rejectionOf(
@@ -496,6 +506,7 @@ describe('validation rejects the whole file (and never writes)', () => {
     ['transaction → scheduled payment', (b: BackupFile) => void (b.data.transactions.find((tx) => tx.id === 'net-paid')!.scheduledPaymentId = 'nowhere')],
     ['scheduled payment → rule', (b: BackupFile) => void (b.data.scheduledPayments[0]!.sourceId = 'nowhere')],
     ['debt → card account', (b: BackupFile) => void (b.data.debts.find((d) => d.id === 'cc')!.linkedAccountId = 'nowhere')],
+    ['planned transfer → account', (b: BackupFile) => void Object.assign(b.data.recurringObligations[0]!, { kind: 'transfer', toAccountId: 'nowhere', categoryId: undefined })],
     ['budget → category', (b: BackupFile) => void (b.data.budgets[0]!.categoryId = 'nowhere')],
     ['attachment → transaction', (b: BackupFile) => void (b.data.attachments[0]!.transactionId = 'nowhere')],
   ])('broken reference: %s', async (_label, change) => {

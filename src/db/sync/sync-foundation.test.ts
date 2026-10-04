@@ -411,13 +411,13 @@ describe('collapse rules (pure)', () => {
 })
 
 describe('backup stays format v1, without sync internals', () => {
-  it('backups carry data schema 1 and no device id, outbox or tombstones', async () => {
+  it('backups carry the current data schema and no device id, outbox or tombstones', async () => {
     const database = fresh()
     await seedRepresentative(database)
     await ensureSyncFoundation(database)
     const backup = await createBackup(database, REP_NOW)
     expect(backup.formatVersion).toBe(1)
-    expect(backup.schemaVersion).toBe(1)
+    expect(backup.schemaVersion).toBe(DATA_SCHEMA_VERSION)
     expect(Object.keys(backup.data).sort()).toEqual(
       ['accounts', 'attachmentBlobs', 'attachments', 'budgets', 'categories', 'debts', 'recurringObligations', 'scheduledPayments', 'transactions'].sort(),
     )

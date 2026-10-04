@@ -133,6 +133,7 @@ const KIND_LABEL: Record<CalendarItemKind, MessageKey> = {
   scheduled_expense: 'calendar.kind.scheduled_expense',
   scheduled_income: 'calendar.kind.scheduled_income',
   scheduled_debt: 'calendar.kind.scheduled_debt',
+  scheduled_transfer: 'calendar.kind.scheduled_transfer',
 }
 
 /** Status in words ("กำหนดจ่าย", "เลยกำหนด", "จ่ายแล้ว", "คาดว่าจะได้รับ", "ได้รับแล้ว"…). */
@@ -140,10 +141,11 @@ export function statusLabel(item: Pick<CalendarItem, 'kind' | 'status'>): string
   if (item.status === 'actual') return t(KIND_LABEL[item.kind])
   const income = item.kind === 'scheduled_income'
   const debt = item.kind === 'scheduled_debt'
+  const transfer = item.kind === 'scheduled_transfer'
   const key: Record<Exclude<CalendarItemStatus, 'actual'>, MessageKey> = {
-    upcoming: income ? 'calendar.status.expected' : debt ? 'calendar.status.dueDebt' : 'calendar.status.due',
+    upcoming: income ? 'calendar.status.expected' : debt ? 'calendar.status.dueDebt' : transfer ? 'calendar.status.dueTransfer' : 'calendar.status.due',
     overdue: 'calendar.status.overdue',
-    paid: income ? 'calendar.status.received' : debt ? 'calendar.status.paidDebt' : 'calendar.status.paid',
+    paid: income ? 'calendar.status.received' : debt ? 'calendar.status.paidDebt' : transfer ? 'calendar.status.paidTransfer' : 'calendar.status.paid',
     skipped: 'calendar.status.skipped',
   }
   return t(key[item.status])

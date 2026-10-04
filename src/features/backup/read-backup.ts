@@ -59,8 +59,9 @@ function readV1(raw: unknown): PreparedRestore {
       header.error.issues.map((issue) => `header.${issue.path.join('.')}: ${issue.message}`),
     )
   const { schemaVersion, currency, calendar, data } = header.data
-  // Older schema versions would need a migration; none exist yet. Newer ones come from a newer app.
-  if (schemaVersion !== DATA_SCHEMA_VERSION) throw new BackupError('unsupported_version', [`schemaVersion ${schemaVersion}`])
+  // Every older data schema is a strict subset of the current one (v2 only added optional fields), so it reads as is.
+  // Newer ones come from a newer app.
+  if (schemaVersion > DATA_SCHEMA_VERSION) throw new BackupError('unsupported_version', [`schemaVersion ${schemaVersion}`])
   if (currency !== BACKUP_CURRENCY || calendar !== BACKUP_CALENDAR) throw new BackupError('invalid_data', [`currency ${currency}`, `calendar ${calendar}`])
 
   // Records: every collection present, every record exactly the stored shape.
@@ -178,6 +179,7 @@ function checkReferences(d: BackupData) {
   for (const debt of d.debts) optional(debt.linkedAccountId, accounts, `debts[${debt.id}].linkedAccountId`)
   for (const o of d.recurringObligations) {
     optional(o.defaultAccountId, accounts, `recurringObligations[${o.id}].defaultAccountId`)
+    optional(o.toAccountId, accounts, `recurringObligations[${o.id}].toAccountId`)
     optional(o.categoryId, categories, `recurringObligations[${o.id}].categoryId`)
     optional(o.debtId, debts, `recurringObligations[${o.id}].debtId`)
   }

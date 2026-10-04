@@ -257,7 +257,7 @@ describe('Drive sync: one data set, any device', () => {
     const drive = createFakeDrive(now)
     const a = device()
     await sync(a, drive)
-    drive.rawText = drive.rawText!.replace('"schemaVersion":1', '"schemaVersion":99')
+    drive.rawText = drive.rawText!.replace(/"schemaVersion":\d+/, '"schemaVersion":99')
     await expect(sync(a, drive)).rejects.toMatchObject({ reason: 'newer_app' })
   })
 })

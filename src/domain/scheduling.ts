@@ -42,8 +42,13 @@ export interface ObligationDraft {
   defaultAccountId?: ID
   /** Set to pay a debt (creates debt payments, never expenses). */
   debtId?: ID
-  /** 'income' = expected money in (salary…): needs an income category, never a debt. */
-  kind?: 'income'
+  /**
+   * 'income' = expected money in (salary…): needs an income category, never a debt.
+   * 'transfer' = planned move to another own account (savings, DCA…): needs `toAccountId`.
+   */
+  kind?: 'income' | 'transfer'
+  /** kind 'transfer': destination account. */
+  toAccountId?: ID
   recurrence: RecurrenceRule
   note?: string
 }
@@ -61,6 +66,9 @@ export type ObligationIssue =
   | 'pay_from_liability'
   | 'debt_not_found'
   | 'debt_has_own_schedule'
+  | 'to_account_required'
+  | 'unknown_to_account'
+  | 'same_account'
   | RecurrenceIssue
 
 export interface ObligationContext {
@@ -75,15 +83,24 @@ export interface ObligationContext {
  */
 export type ScheduleSource = Pick<RecurringObligation, 'recurrence' | 'expectedAmountSatang' | 'scheduleFrom' | 'pausedAt' | 'archivedAt'>
 
-export type ObligationKind = 'bill' | 'debt' | 'income'
+export type ObligationKind = 'bill' | 'debt' | 'income' | 'transfer'
 
-/** Bill (expense), debt payment, or expected income — one rule model, three meanings. */
+/** Bill (expense), debt payment, expected income, or planned transfer — one rule model, four meanings. */
 export function obligationKind(obligation: Pick<RecurringObligation, 'kind' | 'debtId'>): ObligationKind {
   if (obligation.kind === 'income') return 'income'
+  if (obligation.kind === 'transfer') return 'transfer'
   return obligation.debtId ? 'debt' : 'bill'
 }
 
 export const isIncomeObligation = (obligation: Pick<RecurringObligation, 'kind'>) => obligation.kind === 'income'
+
+/** A rule that happens once (a planned one-off bill or income): stored as a single-occurrence rule. */
+export const isOneOff = (rule: Pick<RecurrenceRule, 'count'>) => rule.count === 1
+
+/** The rule for a one-off planned item due on `date`. */
+export function oneOffRecurrence(date: ISODate): RecurrenceRule {
+  return { frequency: 'monthly', interval: 1, startDate: date, dayOfMonth: Number(date.slice(8, 10)), count: 1 }
+}
 
 export function isObligationActive(obligation: Pick<RecurringObligation, 'pausedAt' | 'archivedAt'>): boolean {
   return !obligation.pausedAt && !obligation.archivedAt
@@ -112,7 +129,15 @@ export function buildObligation(
   else if (draft.amountSatang <= 0) issues.push('amount_must_be_positive')
 
   const income = draft.kind === 'income'
-  if (income) {
+  const transfer = draft.kind === 'transfer'
+  if (transfer) {
+    if (!draft.toAccountId) issues.push('to_account_required')
+    else {
+      const to = context.accounts.get(draft.toAccountId)
+      if (!to || (to.archivedAt && meta.existing?.toAccountId !== draft.toAccountId)) issues.push('unknown_to_account')
+      else if (draft.toAccountId === draft.defaultAccountId) issues.push('same_account')
+    }
+  } else if (income) {
     if (!draft.categoryId) issues.push('category_required')
     else if (context.categories.get(draft.categoryId)?.kind !== 'income') issues.push('category_not_income')
   } else if (draft.debtId) {
@@ -130,7 +155,7 @@ export function buildObligation(
   else {
     const account = context.accounts.get(draft.defaultAccountId)
     if (!account || (account.archivedAt && meta.existing?.defaultAccountId !== draft.defaultAccountId)) issues.push('unknown_account')
-    else if ((draft.debtId || income) && accountClassOf(account.kind) === 'liability') issues.push('pay_from_liability')
+    else if ((draft.debtId || income || transfer) && accountClassOf(account.kind) === 'liability') issues.push('pay_from_liability')
   }
 
   issues.push(...validateRecurrence(draft.recurrence))
@@ -149,9 +174,10 @@ export function buildObligation(
     variableAmount: existing?.variableAmount ?? false,
     recurrence,
     defaultAccountId: draft.defaultAccountId,
-    categoryId: !income && draft.debtId ? undefined : draft.categoryId,
-    debtId: income ? undefined : draft.debtId || undefined,
-    kind: income ? 'income' : undefined,
+    categoryId: transfer || (!income && draft.debtId) ? undefined : draft.categoryId,
+    debtId: income || transfer ? undefined : draft.debtId || undefined,
+    kind: income ? 'income' : transfer ? 'transfer' : undefined,
+    toAccountId: transfer ? draft.toAccountId : undefined,
     scheduleFrom: existing?.scheduleFrom ?? later(recurrence.startDate, firstOfMonth(meta.today)),
     note: draft.note?.trim() || undefined,
     createdAt: existing?.createdAt ?? meta.now,
@@ -204,22 +230,29 @@ export interface RuleChangePlan {
  * After an edit: future unpaid occurrences follow the new rule; everything
  * else — paid, skipped and past (overdue) occurrences — is history and is
  * never touched. Unchanged occurrences keep their ids.
+ *
+ * Amounts: with `previousAmount` (the rule's amount before the edit), only
+ * occurrences still at that amount follow the new one — a month whose amount
+ * the user set by hand (the plan) keeps it. Occurrences planned beyond the
+ * generation horizon are kept while their date is still on the rule.
  */
-export function planRuleChange(obligation: ScheduleSource, existing: readonly ScheduledPayment[], today: ISODate): RuleChangePlan {
+export function planRuleChange(obligation: ScheduleSource, existing: readonly ScheduledPayment[], today: ISODate, previousAmount?: Satang): RuleChangePlan {
   const isFutureUnpaid = (p: ScheduledPayment) => p.status === 'pending' && p.dueDate >= today
   const history = existing.filter((p) => !isFutureUnpaid(p))
   const futureUnpaid = existing.filter(isFutureUnpaid)
 
   const window = generationWindow(obligation, today)
   const wanted = window ? occurrencesBetween(obligation.recurrence, later(window.from, today), window.to) : []
-  const wantedSet = new Set(wanted)
+  const lastPlanned = futureUnpaid.reduce((max, p) => (p.dueDate > max ? p.dueDate : max), window?.to ?? today)
+  const onRule = new Set(window ? occurrencesBetween(obligation.recurrence, later(window.from, today), lastPlanned) : [])
   const historyDates = new Set(history.map((p) => p.dueDate))
   const futureByDate = new Map(futureUnpaid.map((p) => [p.dueDate, p]))
+  const follows = (p: ScheduledPayment) => previousAmount === undefined || p.expectedAmountSatang === previousAmount
 
   return {
-    remove: futureUnpaid.filter((p) => !wantedSet.has(p.dueDate)).map((p) => p.id),
+    remove: futureUnpaid.filter((p) => !onRule.has(p.dueDate)).map((p) => p.id),
     update: futureUnpaid
-      .filter((p) => wantedSet.has(p.dueDate) && p.expectedAmountSatang !== obligation.expectedAmountSatang)
+      .filter((p) => onRule.has(p.dueDate) && follows(p) && p.expectedAmountSatang !== obligation.expectedAmountSatang)
       .map((p) => ({ id: p.id, expectedAmountSatang: obligation.expectedAmountSatang })),
     create: wanted
       .filter((dueDate) => !futureByDate.has(dueDate) && !historyDates.has(dueDate))
@@ -327,10 +360,11 @@ export const dueSoonUntil = (today: ISODate) => addDays(today, DUE_SOON_DAYS)
  */
 export function paymentTypeFor(
   payment: Pick<ScheduledPayment, 'sourceType' | 'sourceId'>,
-  obligation?: Pick<RecurringObligation, 'debtId' | 'kind'>,
-): { type: EditableType; debtId?: ID } {
+  obligation?: Pick<RecurringObligation, 'debtId' | 'kind' | 'toAccountId'>,
+): { type: EditableType; debtId?: ID; toAccountId?: ID } {
   if (payment.sourceType === 'debt') return { type: 'debt_payment', debtId: payment.sourceId }
   if (obligation?.kind === 'income') return { type: 'income' }
+  if (obligation?.kind === 'transfer') return { type: 'transfer', toAccountId: obligation.toAccountId }
   if (obligation?.debtId) return { type: 'debt_payment', debtId: obligation.debtId }
   return { type: 'expense' }
 }
