@@ -13,12 +13,15 @@ describe('stale version after a deploy', () => {
 
   it('reloads once, then not again within the guard window', () => {
     const store = new Map<string, string>()
-    const reload = vi.fn()
+    let reloads = 0
+    const reload = () => {
+      reloads++
+    }
     vi.stubGlobal('sessionStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) })
     vi.stubGlobal('window', { location: { reload } })
     expect(reloadForNewVersion(1_000_000)).toBe(true)
     expect(reloadForNewVersion(1_005_000)).toBe(false)
     expect(reloadForNewVersion(1_100_000)).toBe(true)
-    expect(reload).toHaveBeenCalledTimes(2)
+    expect(reloads).toBe(2)
   })
 })
