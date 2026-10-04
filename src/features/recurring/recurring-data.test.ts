@@ -34,7 +34,7 @@ describe('buildRecurringModel', () => {
     const rows = model().rows
     expect(rows.map((r) => r.id)).toEqual(['card', 'rent', 'mobile', 'gym'])
     expect(rows[0]).toMatchObject({ status: { kind: 'overdue', label: 'ค้างชำระ 5 วัน' }, isDebt: true, categoryLabel: 'ชำระหนี้' })
-    expect(rows[1]).toMatchObject({ dueText: 'ครบกำหนด 6 ต.ค. 2026', perLabel: '/ เดือน', icon: '🏠', status: { kind: 'pending' } })
+    expect(rows[1]).toMatchObject({ dueText: 'ครบกำหนด 06/10/2026', perLabel: '/ เดือน', icon: '🏠', status: { kind: 'pending' } })
     expect(rows[3]).toMatchObject({ paused: true, status: { kind: 'paused' } })
   })
 

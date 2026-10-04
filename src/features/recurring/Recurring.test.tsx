@@ -126,7 +126,7 @@ describe('Recurring — create', () => {
     await user.click(screen.getByRole('radio', { name: /อินเทอร์เน็ต/ }))
     await user.selectOptions(screen.getByLabelText(t('recurring.form.day')), '15')
     // Start date defaults to today (25 Sep), so the first due date is next month's 15th.
-    expect(screen.getByText(/ครบกำหนดครั้งแรก: 15/10/2026/)).toBeInTheDocument()
+    expect(screen.getByText(/ครบกำหนดครั้งแรก: 15\/10\/2026/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: t('recurring.form.save') }))
 
     const row = await within(await list()).findByRole('button', { name: /Internet/ })
@@ -165,8 +165,8 @@ describe('Recurring — list, filters, detail', () => {
     const rows = within(await list()).getAllByRole('button')
     expect(rows.map((r) => r.textContent?.match(/ค่าเช่า|Internet|ประกัน/)?.[0])).toEqual(['ค่าเช่า', 'Internet', 'ประกัน'])
     expect(within(rows[0]!).getByText('ค้างชำระ 19 วัน')).toBeInTheDocument()
-    expect(within(rows[1]!).getByText(/ครบกำหนด 28 ก\.ย\. 2026/)).toBeInTheDocument()
-    expect(within(rows[2]!).getByText(/ครบกำหนด 1 พ\.ย\. 2026/)).toBeInTheDocument()
+    expect(within(rows[1]!).getByText(/ครบกำหนด 28\/09\/2026/)).toBeInTheDocument()
+    expect(within(rows[2]!).getByText(/ครบกำหนด 01\/11\/2026/)).toBeInTheDocument()
     expect(within(rows[2]!).getByText('/ ปี')).toBeInTheDocument()
   })
 
@@ -208,7 +208,7 @@ describe('Recurring — pay', () => {
 
   async function openPay(user: ReturnType<typeof userEvent.setup>) {
     const dialog = await openDetail(user, /ค่าเช่า/)
-    await user.click(within(dialog).getByRole('button', { name: /ชำระแล้ว: 6 ก\.ย\. 2026/ }))
+    await user.click(within(dialog).getByRole('button', { name: /ชำระแล้ว: 06\/09\/2026/ }))
     return screen.findByRole('dialog', { name: t('recurring.pay.title', { name: 'ค่าเช่า' }) })
   }
 
@@ -257,10 +257,10 @@ describe('Recurring — pay', () => {
   it('skip marks the occurrence skipped without a transaction', async () => {
     const { user } = renderRecurring()
     const dialog = await openDetail(user, /ค่าเช่า/)
-    await user.click(within(dialog).getByRole('button', { name: /ข้ามรายการ 6 ก\.ย\. 2026/ }))
+    await user.click(within(dialog).getByRole('button', { name: /ข้ามรายการ 06\/09\/2026/ }))
     await waitFor(async () => expect((await db.scheduledPayments.toArray()).find((p) => p.dueDate === '2026-09-06')?.status).toBe('skipped'))
     expect(await db.transactions.count()).toBe(0)
-    expect(await within(dialog).findByRole('button', { name: /ยกเลิกการข้าม 6 ก\.ย\. 2026/ })).toBeInTheDocument()
+    expect(await within(dialog).findByRole('button', { name: /ยกเลิกการข้าม 06\/09\/2026/ })).toBeInTheDocument()
   })
 })
 
