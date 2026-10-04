@@ -36,11 +36,19 @@ interface Account {
 }
 const account = (sub: string): Account => ({ sub, email: `${sub}@example.com`, drive: createFakeDrive(now) })
 
+interface FakeGoogle {
+  next: Account
+  signedIn: Account | null
+  cancel: boolean
+  signIns: number
+  auth: DriveAuth
+}
+
 /** Google as seen by one device: who signs in next, and whether a valid token is cached. */
-function fakeGoogle(first: Account) {
-  const google = {
-    next: first as Account,
-    signedIn: null as Account | null,
+function fakeGoogle(first: Account): FakeGoogle {
+  const google: FakeGoogle = {
+    next: first,
+    signedIn: null,
     cancel: false,
     signIns: 0,
     auth: {
@@ -58,12 +66,12 @@ function fakeGoogle(first: Account) {
       signOut: async () => {
         google.signedIn = null
       },
-    } satisfies DriveAuth,
+    },
   }
   return google
 }
 
-function controller(database: FinanceDatabase, google: ReturnType<typeof fakeGoogle>, accounts: Account[], configured = true) {
+function controller(database: FinanceDatabase, google: FakeGoogle, accounts: Account[], configured = true) {
   return createDriveSync({
     database,
     configured,

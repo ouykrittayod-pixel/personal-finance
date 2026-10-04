@@ -3,13 +3,8 @@ import { Button } from '@/components/ui/button'
 import { formatDateTime } from '@/lib/formatting'
 import { t } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import type { DriveState } from './drive-sync'
 import { driveSync, useDriveSync } from './instance'
-
-export function syncLabel(state: DriveState): string {
-  if (state.status === 'synced' && state.pending > 0) return t('drive.status.pending', { count: state.pending.toLocaleString('th-TH') })
-  return t(`drive.status.${state.status}`)
-}
+import { syncLabel } from './sync-label'
 
 /** Header chip: where the data stands right now. Tapping syncs, or reconnects when Google needs a tap. */
 export function SyncStatus() {

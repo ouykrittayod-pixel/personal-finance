@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { formatDateTime } from '@/lib/formatting'
 import { t } from '@/lib/i18n'
 import { driveSync, useDriveSync } from './instance'
-import { syncLabel } from './SyncStatus'
+import { syncLabel } from './sync-label'
 
 /** Settings: which Google account holds the data, sync state, and signing this device out. */
 export function DriveCard() {
