@@ -26,7 +26,7 @@ jobs:
           set +e
           npx tsc -b > tsc.txt 2>&1; echo "exit $?" >> tsc.txt
           npx oxlint --deny-warnings > lint.txt 2>&1; echo "exit $?" >> lint.txt
-          npx vitest run --reporter=dot > test.txt 2>&1; echo "exit $?" >> test.txt
+          npx vitest run --silent --reporter=dot > test.txt 2>&1; echo "exit $?" >> test.txt
           npx vite build > build.txt 2>&1; echo "exit $?" >> build.txt
           true
       - name: post
