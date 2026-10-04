@@ -106,7 +106,7 @@ describe('Accounts — overview, detail, archive', () => {
     ])
     const { user, router } = renderAccounts('/accounts?id=kbank')
     const dialog = await screen.findByRole('dialog', { name: t('accounts.detail.title') })
-    expect(await within(dialog).findByText('1 กันยายน 2026')).toBeInTheDocument()
+    expect(await within(dialog).findByText('01/09/2026')).toBeInTheDocument()
     expect(within(dialog).getByText(t('accounts.detail.transfersOut')).parentElement).toHaveTextContent('฿5,000')
     expect(within(dialog).getByText(t('accounts.detail.incomeIn')).parentElement).toHaveTextContent('฿27,500')
     const recent = within(dialog).getByRole('list', { name: t('accounts.detail.recent') })

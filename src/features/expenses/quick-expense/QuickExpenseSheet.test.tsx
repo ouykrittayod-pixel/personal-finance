@@ -54,7 +54,7 @@ describe('Quick Expense — form', () => {
     // Focus lands right after the sheet opens (auto-focus); wait for it rather than racing it.
     await waitFor(() => expect(amount).toHaveFocus())
     expect(screen.getByRole('radio', { name: /อาหาร/ })).not.toBeChecked()
-    expect(screen.getByText(/จ่ายจาก เงินสด · 25 ก\.ย\. 2026/)).toBeInTheDocument()
+    expect(screen.getByText(/จ่ายจาก เงินสด · 25\/09\/2026/)).toBeInTheDocument()
 
     await user.click(saveButton())
     expect(await screen.findByText(t('expense.error.amount_required'))).toBeInTheDocument()

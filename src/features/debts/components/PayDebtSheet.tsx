@@ -108,6 +108,7 @@ export function PayDebtSheet({ target, detail, today, onClose, ops }: PayDebtShe
             formId={formId}
             type="debt_payment"
             detailsInitiallyOpen
+            payment={payment ? { dueDate: payment.dueDate } : { dueDate: today }}
             data={{ categories: [], accounts: detail.accounts.filter((a) => !a.archivedAt), debts: detail.debts }}
             defaults={{
               amountSatang: payment?.expectedAmountSatang,

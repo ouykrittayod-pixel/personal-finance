@@ -153,6 +153,11 @@ export interface AccountDraft {
   openingAmountSatang: Satang | null
   openingDate: ISODate
   note?: string
+  /**
+   * Credit cards: limit and billing days. Absent = keep what is stored (older
+   * callers); a null field = not set. Ignored (and cleared) for other kinds.
+   */
+  card?: { creditLimitSatang: Satang | null; statementDay: number | null; paymentDueDay: number | null }
 }
 
 export type AccountIssue =
@@ -164,6 +169,8 @@ export type AccountIssue =
   | 'kind_linked_to_debt'
   | 'opening_after_transactions'
   | 'name_taken'
+  | 'credit_limit_invalid'
+  | 'card_day_invalid'
 
 export interface AccountContext {
   /** Other accounts (unique names among active accounts). */
@@ -206,6 +213,12 @@ export function buildAccount(
   if (!kinds.includes(draft.kind)) issues.push('kind_invalid')
   if (draft.openingAmountSatang !== null && (!Number.isSafeInteger(draft.openingAmountSatang) || draft.openingAmountSatang < 0)) issues.push('opening_invalid')
   if (!isValidDate(draft.openingDate)) issues.push('opening_date_invalid')
+  if (draft.kind === 'credit_card' && draft.card) {
+    const limit = draft.card.creditLimitSatang
+    if (limit !== null && (!Number.isSafeInteger(limit) || limit <= 0)) issues.push('credit_limit_invalid')
+    const badDay = (day: number | null) => day !== null && (!Number.isInteger(day) || day < 1 || day > 31)
+    if (badDay(draft.card.statementDay) || badDay(draft.card.paymentDueDay)) issues.push('card_day_invalid')
+  }
 
   if (existing && draft.kind !== existing.kind) {
     if (accountClassOf(draft.kind) !== accountClassOf(existing.kind)) issues.push('kind_change_not_allowed')
@@ -231,5 +244,18 @@ export function buildAccount(
     updatedAt: meta.now,
   }
   if (account.note === undefined) delete account.note
+  if (draft.kind !== 'credit_card') {
+    delete account.creditLimitSatang
+    delete account.statementDay
+    delete account.paymentDueDay
+  } else if (draft.card) {
+    const { creditLimitSatang, statementDay, paymentDueDay } = draft.card
+    if (creditLimitSatang === null) delete account.creditLimitSatang
+    else account.creditLimitSatang = creditLimitSatang
+    if (statementDay === null) delete account.statementDay
+    else account.statementDay = statementDay
+    if (paymentDueDay === null) delete account.paymentDueDay
+    else account.paymentDueDay = paymentDueDay
+  }
   return { ok: true, account }
 }

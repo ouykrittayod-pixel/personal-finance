@@ -188,7 +188,7 @@ describe('Income — recurring', () => {
     expect(await db.transactions.where('type').equals('income').count()).toBe(1) // generation creates no income
 
     const rules = await screen.findByRole('list', { name: t('income.recurring.list') })
-    await user.click(within(rules).getByRole('button', { name: t('income.recurring.receiveFor', { date: '25 ต.ค. 2026' }) }))
+    await user.click(within(rules).getByRole('button', { name: t('income.recurring.receiveFor', { date: '25/10/2026' }) }))
     const receive = await screen.findByRole('dialog', { name: t('income.receive.title', { name: 'เงินเดือน' }) })
     expect(within(receive).getByText(t('income.receive.expected'))).toBeInTheDocument()
     const amount = within(receive).getByLabelText(t('form.amount'))

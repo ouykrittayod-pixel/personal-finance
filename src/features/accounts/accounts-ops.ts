@@ -30,7 +30,7 @@ export const defaultAccountsOps: AccountsOps = {
   reconcile: (id, actualSatang) => transactionsRepository.reconcileBalance(id, actualSatang, { id: newId(), now: now(), date: todayISO() }),
 }
 
-export type AccountField = 'name' | 'kind' | 'opening' | 'openingDate'
+export type AccountField = 'name' | 'kind' | 'opening' | 'openingDate' | 'creditLimit' | 'cardDays'
 
 export interface AccountErrors {
   fields: Partial<Record<AccountField, string>>
@@ -47,6 +47,8 @@ const FIELD_OF: Record<AccountWriteIssue, [AccountField | null, MessageKey]> = {
   opening_date_invalid: ['openingDate', 'accounts.error.opening_date_invalid'],
   opening_after_transactions: ['openingDate', 'accounts.error.opening_after_transactions'],
   linked_to_debt: [null, 'accounts.error.linked_to_debt'],
+  credit_limit_invalid: ['creditLimit', 'accounts.error.credit_limit_invalid'],
+  card_day_invalid: ['cardDays', 'accounts.error.card_day_invalid'],
 }
 
 /** Any failure → Thai messages. Raw errors are never shown. */

@@ -85,7 +85,7 @@ export function Accounts({ today, load = loadAccountsData, ops = defaultAccounts
   const raw = result?.ok ? result.raw : null
   const model = useMemo(() => (raw ? buildAccountsModel(raw, { filter, search }) : null), [raw, filter, search])
   const selectedId = searchParams.get('id')
-  const accountDetail = useMemo(() => (raw && selectedId ? buildAccountDetail(raw, selectedId) : null), [raw, selectedId])
+  const accountDetail = useMemo(() => (raw && selectedId ? buildAccountDetail(raw, selectedId, today) : null), [raw, selectedId, today])
 
   const setParam = (key: 'id' | 'tx', value: string | null) =>
     setSearchParams(

@@ -18,6 +18,7 @@ import { formatDate, formatTHB } from '@/lib/formatting'
 import { t } from '@/lib/i18n'
 import type { AccountDetail } from '../accounts-data'
 import { accountActionFailureMessage, type AccountsOps } from '../accounts-ops'
+import { CreditCardSection, InvestmentSection } from './AccountProfileSections'
 import { ReconcileDialog } from './ReconcileDialog'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -145,16 +146,19 @@ export function AccountDetailSheet({ detail, loading = false, accountId, onClose
             </div>
 
             <div className="flex flex-col gap-1 rounded-lg border p-card">
-              <span className="text-sm text-muted-foreground">{detail.liability ? t('accounts.detail.currentOwed') : t('accounts.detail.current')}</span>
+              <span className="text-sm text-muted-foreground">{detail.liability ? t('accounts.detail.currentOwed') : detail.investment ? t('accounts.investment.value') : t('accounts.detail.current')}</span>
               {detail.liability ? <LiabilityBalance balance={detail.balance} /> : <MoneyDisplay amount={detail.balance} size="xl" />}
               {card && <p className="pt-1 text-xs text-muted-foreground">{t('accounts.detail.cardNote')}</p>}
               {!account.archivedAt && (
                 <SecondaryButton className="mt-2 self-start" onClick={() => setReconciling(true)} disabled={busy}>
                   <Scale aria-hidden="true" />
-                  {t('accounts.reconcile.action')}
+                  {t(account.kind === 'investment' ? 'accounts.reconcile.actionValue' : 'accounts.reconcile.action')}
                 </SecondaryButton>
               )}
             </div>
+
+            {detail.card && <CreditCardSection profile={detail.card} />}
+            {detail.investment && <InvestmentSection profile={detail.investment} />}
 
             <dl className="divide-y divide-border border-y">
               <Row label={detail.liability ? t('accounts.detail.openingOwed') : t('accounts.detail.opening')}>{formatTHB(openingAmountOf(account), { trimZeroFraction: true })}</Row>
@@ -250,6 +254,7 @@ export function AccountDetailSheet({ detail, loading = false, accountId, onClose
           account={reconciling && account && !account.archivedAt ? account : null}
           balance={detail.balance}
           liability={detail.liability}
+          investment={account?.kind === 'investment'}
           onClose={() => setReconciling(false)}
           reconcile={ops.reconcile}
         />

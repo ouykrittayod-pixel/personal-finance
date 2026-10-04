@@ -15,7 +15,8 @@ import {
   type AccountActivity,
 } from '@/domain/accounts'
 import { isDebtActive } from '@/domain/debts'
-import type { Account, Category, Debt, ID, RecurringObligation, Transaction } from '@/domain/entities'
+import { creditCardProfile, investmentProfile, type CreditCardProfile, type InvestmentProfile } from '@/domain/account-profiles'
+import type { Account, Category, Debt, ID, ISODate, RecurringObligation, Transaction } from '@/domain/entities'
 import { normalizeSearch, matchesSearch } from '@/domain/ledger'
 import { sum, ZERO, type Satang } from '@/domain/money'
 import { accountClassOf } from '@/domain/transactions'
@@ -125,9 +126,13 @@ export interface AccountDetail {
   linkedDebt?: Debt
   /** Active recurring rules that use this account by default. */
   ruleCount: number
+  /** Credit cards: limit, usage and billing cycle. */
+  card?: CreditCardProfile
+  /** Investment accounts: value, money put in, gain/loss, plans. */
+  investment?: InvestmentProfile
 }
 
-export function buildAccountDetail(raw: AccountsRawData, id: ID): AccountDetail | null {
+export function buildAccountDetail(raw: AccountsRawData, id: ID, today: ISODate): AccountDetail | null {
   const account = raw.accounts.find((a) => a.id === id)
   if (!account) return null
   const categories = new Map(raw.categories.map((c) => [c.id, c]))
@@ -158,5 +163,7 @@ export function buildAccountDetail(raw: AccountsRawData, id: ID): AccountDetail 
     totalTransactions: history.length,
     linkedDebt: raw.debts.find((d) => d.linkedAccountId === id && isDebtActive(d)),
     ruleCount: raw.obligations.filter((o) => o.defaultAccountId === id && !o.archivedAt).length,
+    ...(account.kind === 'credit_card' ? { card: creditCardProfile(account, raw.transactions, { debts: raw.debts, obligations: raw.obligations }, today) } : {}),
+    ...(account.kind === 'investment' ? { investment: investmentProfile(account, raw.transactions, raw.obligations, today) } : {}),
   }
 }

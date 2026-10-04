@@ -14,6 +14,8 @@ export interface ReconcileDialogProps {
   /** The balance the app has now (liabilities negative). */
   balance: Satang
   liability: boolean
+  /** Investment: the "balance" is the portfolio's market value; the adjustment is a gain or loss. */
+  investment?: boolean
   onClose: () => void
   reconcile: AccountsOps['reconcile']
 }
@@ -25,7 +27,7 @@ const money = (amount: Satang) => formatTHB(amount, { trimZeroFraction: true })
  * difference is recorded as one adjustment today — never an expense or income.
  * For a card or loan the user types what is owed.
  */
-export function ReconcileDialog({ account, balance, liability, onClose, reconcile }: ReconcileDialogProps) {
+export function ReconcileDialog({ account, balance, liability, investment = false, onClose, reconcile }: ReconcileDialogProps) {
   const formId = useId()
   const toast = useToast()
   const [text, setText] = useState('')
@@ -71,8 +73,8 @@ export function ReconcileDialog({ account, balance, liability, onClose, reconcil
       onOpenChange={(open) => {
         if (!open && !saving) onClose()
       }}
-      title={t('accounts.reconcile.title')}
-      description={t(liability ? 'accounts.reconcile.hintOwed' : 'accounts.reconcile.hint', { current: money(liability ? negate(balance) : balance) })}
+      title={t(investment ? 'accounts.reconcile.titleValue' : 'accounts.reconcile.title')}
+      description={t(liability ? 'accounts.reconcile.hintOwed' : investment ? 'accounts.reconcile.hintValue' : 'accounts.reconcile.hint', { current: money(liability ? negate(balance) : balance) })}
       footer={
         <>
           <SecondaryButton onClick={onClose} disabled={saving}>
@@ -87,7 +89,7 @@ export function ReconcileDialog({ account, balance, liability, onClose, reconcil
       <form id={formId} onSubmit={submit} noValidate className="flex flex-col gap-stack">
         <AmountInput
           size="md"
-          label={t(liability ? 'accounts.reconcile.actualOwed' : 'accounts.reconcile.actual')}
+          label={t(liability ? 'accounts.reconcile.actualOwed' : investment ? 'accounts.reconcile.actualValue' : 'accounts.reconcile.actual')}
           value={text}
           onValueChange={(next) => {
             setText(next)
@@ -102,7 +104,7 @@ export function ReconcileDialog({ account, balance, liability, onClose, reconcil
             {t(difference > 0 ? 'accounts.reconcile.diffUp' : 'accounts.reconcile.diffDown', { amount: money((difference > 0 ? difference : negate(difference)) as Satang) })}
           </p>
         )}
-        <p className="text-xs text-muted-foreground">{t('accounts.reconcile.note')}</p>
+        <p className="text-xs text-muted-foreground">{t(investment ? 'accounts.reconcile.noteValue' : 'accounts.reconcile.note')}</p>
       </form>
     </Dialog>
   )

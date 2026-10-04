@@ -26,18 +26,18 @@ describe('dates', () => {
     expect(toISODate(new Date(2026, 11, 31, 23, 59))).toBe('2026-12-31')
   })
 
-  it('formats Thai dates with Gregorian years, not Buddhist Era', () => {
-    const text = formatDate('2026-09-25', 'long')
-    expect(text).toContain('2026')
-    expect(text).not.toContain('2569')
-    expect(text).toContain('กันยายน')
+  it('shows every date as dd/mm/yyyy with the Gregorian year (never Buddhist Era)', () => {
+    for (const style of ['short', 'medium', 'long'] as const) expect(formatDate('2026-09-25', style)).toBe('25/09/2026')
+    expect(formatDate('2026-01-05')).toBe('05/01/2026')
+    expect(formatDate('2026-12-31', 'long')).not.toContain('2569')
+    expect(formatDate(new Date(2027, 1, 3))).toBe('03/02/2027')
   })
 
-  it('never shows the era marker', () => {
-    expect(formatDate('2026-09-25', 'long')).toBe('25 กันยายน 2026')
-    expect(formatDate('2026-09-25', 'medium')).toBe('25 ก.ย. 2026')
+  it('full adds the weekday; date-times add hh:mm', () => {
+    expect(formatDate('2026-09-25', 'full')).toMatch(/^\S+ 25\/09\/2026$/)
     expect(formatDate('2026-09-25', 'full')).not.toContain('ค.ศ.')
-    expect(formatDateTime('2026-09-25T05:15:00.000Z')).toMatch(/^25 ก\.ย\. 2026 \d{2}:\d{2}$/)
+    expect(formatDateTime('2026-09-25T05:15:00.000Z')).toMatch(/^\d{2}\/\d{2}\/2026 \d{2}:\d{2}$/)
+    expect(formatDateTime('not a time')).toBe('not a time')
   })
 })
 

@@ -46,6 +46,9 @@ function AccountForm({
   const [openingText, setOpeningText] = useState(existing ? formatMoney(openingAmountOf(existing), { locale: APP_LOCALE, symbol: false, trimZeroFraction: true }) : '')
   const [openingDate, setOpeningDate] = useState<ISODate>(existing?.openingDate ?? today)
   const [note, setNote] = useState(existing?.note ?? '')
+  const [limitText, setLimitText] = useState(existing?.creditLimitSatang ? formatMoney(existing.creditLimitSatang, { locale: APP_LOCALE, symbol: false, trimZeroFraction: true }) : '')
+  const [statementDay, setStatementDay] = useState(existing?.statementDay ? String(existing.statementDay) : '')
+  const [paymentDueDay, setPaymentDueDay] = useState(existing?.paymentDueDay ? String(existing.paymentDueDay) : '')
   const [errors, setErrors] = useState<AccountErrors>({ fields: {} })
   const [saving, setSaving] = useState(false)
   const submitting = useRef(false)
@@ -64,12 +67,26 @@ function AccountForm({
       setErrors({ fields: { opening: t('expense.error.amount_invalid') } })
       return
     }
+    const limit = limitText.trim() === '' ? null : tryParseBaht(limitText.trim())
+    if (kind === 'credit_card' && limitText.trim() !== '' && limit === null) {
+      setErrors({ fields: { creditLimit: t('expense.error.amount_invalid') } })
+      return
+    }
     submitting.current = true
     setSaving(true)
     onSavingChange(true)
     setErrors({ fields: {} })
     try {
-      await onSubmit({ name, kind, openingAmountSatang: opening, openingDate, note })
+      await onSubmit({
+        name,
+        kind,
+        openingAmountSatang: opening,
+        openingDate,
+        note,
+        ...(kind === 'credit_card'
+          ? { card: { creditLimitSatang: limit, statementDay: statementDay ? Number(statementDay) : null, paymentDueDay: paymentDueDay ? Number(paymentDueDay) : null } }
+          : {}),
+      })
     } catch (error) {
       setErrors(accountFailureToErrors(error))
       submitting.current = false
@@ -124,6 +141,38 @@ function AccountForm({
         />
         <p className="text-xs text-muted-foreground">{liability ? t('accounts.form.openingOwedHint') : t('accounts.form.openingHint')}</p>
       </div>
+
+      {kind === 'credit_card' && (
+        <fieldset className="flex flex-col gap-stack rounded-md border px-3 py-3">
+          <legend className="px-1 text-sm font-medium">{t('accounts.form.cardSection')}</legend>
+          <AmountInput
+            size="md"
+            label={t('accounts.form.creditLimit')}
+            value={limitText}
+            onValueChange={(text) => setLimitText(text)}
+            error={errors.fields.creditLimit}
+            disabled={saving}
+          />
+          <div className="grid grid-cols-2 gap-stack">
+            <SelectField
+              label={t('accounts.form.statementDay')}
+              value={statementDay}
+              onValueChange={setStatementDay}
+              options={[{ value: '', label: t('accounts.form.dayNotSet') }, ...Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))]}
+              disabled={saving}
+            />
+            <SelectField
+              label={t('accounts.form.paymentDueDay')}
+              value={paymentDueDay}
+              onValueChange={setPaymentDueDay}
+              options={[{ value: '', label: t('accounts.form.dayNotSet') }, ...Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))]}
+              disabled={saving}
+            />
+          </div>
+          <FieldError message={errors.fields.cardDays} />
+          <p className="text-xs text-muted-foreground">{t('accounts.form.cardHint')}</p>
+        </fieldset>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <DateInput label={t('accounts.form.openingDate')} shortcuts={false} today={today} value={openingDate} onValueChange={setOpeningDate} />
