@@ -48,8 +48,8 @@ describe('monthly plan', () => {
       sorted([
         ['DCA', 'transfer', 'skipped', 0],
         ['ค่าเช่า', 'bill', 'paid', baht(3_800)],
-        ['ค่าไฟ', 'bill', 'pending', baht(1_250)],
-        ['บัตร', 'debt', 'pending', baht(2_500)],
+        ['ค่าไฟ', 'bill', 'overdue', baht(1_250)],
+        ['บัตร', 'debt', 'overdue', baht(2_500)],
       ]),
     )
     expect(plan.totals).toEqual({

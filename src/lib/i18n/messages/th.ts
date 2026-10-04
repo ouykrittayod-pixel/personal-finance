@@ -241,6 +241,7 @@ export const th = {
   'recurring.form.kindTransfer': 'โอนเข้าบัญชี',
   'recurring.form.kindTransferHint': 'เช่น ออมเงิน หรือ DCA เมื่อโอนจะบันทึกเป็นการโอนระหว่างบัญชี ไม่นับเป็นรายจ่าย',
   'recurring.form.toAccount': 'โอนเข้าบัญชี',
+  'recurring.detail.transferTo': 'โอนไป {account}',
   'recurring.form.debt': 'หนี้ที่ชำระ',
   'recurring.form.frequency': 'ความถี่',
   'recurring.form.interval': 'ทุก ๆ',
