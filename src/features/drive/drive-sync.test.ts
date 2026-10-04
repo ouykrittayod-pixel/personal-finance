@@ -302,4 +302,33 @@ describe('Drive connection on a device', () => {
     expect(publishes).toBe(2)
     expect(drive.getState()).toMatchObject({ status: 'synced', sheetError: false, sheetUrl: 'https://docs.google.com/spreadsheets/d/s1' })
   })
+
+  it('a home-screen app coming back from Google's sign-in page finishes connecting by itself', async () => {
+    const me = account('me')
+    await seedDrive(me)
+    const database = await device()
+    const google = fakeGoogle(me)
+    let redirect: string | null = 'ok'
+    google.auth.takeRedirectResult = () => {
+      const result = redirect
+      redirect = null
+      return result
+    }
+    google.signedIn = me // the token arrived in the URL and was stored before the app started
+    const drive = controller(database, google, [me])
+    await drive.start()
+    expect(drive.getState()).toMatchObject({ status: 'synced', email: 'me@example.com' })
+    expect(google.signIns).toBe(0)
+    expect(await database.transactions.get('salary')).toBeDefined()
+  })
+
+  it('a refusal on Google's page shows why, without connecting', async () => {
+    const me = account('me')
+    const database = await device()
+    const google = fakeGoogle(me)
+    google.auth.takeRedirectResult = () => 'access_denied'
+    const drive = controller(database, google, [me])
+    await drive.start()
+    expect(drive.getState()).toMatchObject({ status: 'not_linked', error: 'cancelled' })
+  })
 })

@@ -70,10 +70,12 @@ export interface DriveState {
 export interface DriveAuth {
   /** Valid cached token or null; never opens a pop-up. */
   currentToken(): string | null
-  /** Opens Google's pop-up (call from a tap). */
+  /** Opens Google's pop-up, or leaves for Google's page in a home-screen app (call from a tap). */
   signIn(loginHint?: string): Promise<string>
   user(token: string): Promise<GoogleUser>
   signOut(): Promise<void>
+  /** After a redirect sign-in came back: 'ok' or Google's error code, once; null otherwise. */
+  takeRedirectResult?(): string | null
 }
 
 export interface DriveSyncOptions {
@@ -236,7 +238,7 @@ export function createDriveSync(options: DriveSyncOptions) {
     }
   }
 
-  return {
+  const api = {
     getState: () => state,
     subscribe(listener: () => void) {
       listeners.add(listener)
@@ -247,8 +249,16 @@ export function createDriveSync(options: DriveSyncOptions) {
     async start(): Promise<void> {
       if (!options.configured) return
       const link = await readLink()
+      // Back from Google's sign-in page (home-screen app): finish connecting, or show why it did not work.
+      const redirect = auth.takeRedirectResult?.() ?? null
+      const token = auth.currentToken()
+      if (redirect === 'ok' && token) {
+        await api.connect(token)
+        return
+      }
+      const redirectError: DriveErrorCode | null = redirect === null || redirect === 'ok' ? null : redirect === 'access_denied' ? 'cancelled' : redirect === 'scope_denied' ? 'scope_denied' : 'unavailable'
       if (!link) {
-        set({ status: 'not_linked', email: null, lastSyncAt: null, error: null })
+        set({ status: 'not_linked', email: null, lastSyncAt: null, error: redirectError })
         return
       }
       set({ status: 'synced', email: link.email, lastSyncAt: link.lastSyncAt, pending: await database.syncOutbox.count(), sheetUrl: link.sheetUrl ?? null })
@@ -261,11 +271,11 @@ export function createDriveSync(options: DriveSyncOptions) {
      * another account's data empties its cache first; it refuses if that data
      * still has changes that never reached Drive.
      */
-    async connect(): Promise<boolean> {
+    async connect(givenToken?: string): Promise<boolean> {
       const previous = await readLink()
       set({ status: previous ? state.status : 'connecting', busy: true, error: null })
       try {
-        const token = await auth.signIn(previous?.email || undefined)
+        const token = givenToken ?? (await auth.signIn(previous?.email || undefined))
         const user = await auth.user(token)
         if (previous && previous.sub !== user.sub) {
           if ((await database.syncOutbox.count()) > 0) {
@@ -326,6 +336,7 @@ export function createDriveSync(options: DriveSyncOptions) {
       if (timer) clearTimeout(timer)
     },
   }
+  return api
 }
 
 export type DriveSync = ReturnType<typeof createDriveSync>

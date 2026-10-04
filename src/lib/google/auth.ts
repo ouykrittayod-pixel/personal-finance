@@ -10,6 +10,7 @@
  * - There is no refresh token and no client secret anywhere (that would need a server).
  */
 import { GOOGLE_CLIENT_ID, GOOGLE_SCOPES, REQUIRED_SCOPES } from './config'
+import { isStandaloneApp, startRedirectSignIn } from './oauth-redirect'
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client'
 const TOKEN_KEY = 'pf-google-token'
@@ -132,10 +133,26 @@ export function forgetAccessToken(): void {
 }
 
 /**
- * Open Google's pop-up and get a token. Must be called from a tap/click
- * handler (browsers block pop-ups otherwise).
+ * Keep a token that came back from a redirect sign-in. Returns an error code
+ * when the user did not grant the app's Drive folder.
+ */
+export function storeRedirectToken(accessToken: string, expiresIn: number, scope: string): string | undefined {
+  const granted = new Set(scope.split(/\s+/))
+  if (!REQUIRED_SCOPES.every((s) => granted.has(s))) return 'scope_denied'
+  const token = { accessToken, expiresAt: Date.now() + expiresIn * 1000 }
+  memoryToken = token
+  writeToken(token)
+  return undefined
+}
+
+/**
+ * Get a token from Google. Must be called from a tap/click handler.
+ * - In a browser tab: Google's pop-up.
+ * - In an app opened from the home screen (pop-ups cannot report back there):
+ *   leaves for Google's page and comes back with the token (see oauth-redirect).
  */
 export async function requestAccessToken(options: { loginHint?: string; consent?: boolean } = {}): Promise<string> {
+  if (isStandaloneApp()) return startRedirectSignIn({ clientId: GOOGLE_CLIENT_ID, scopes: GOOGLE_SCOPES, loginHint: options.loginHint, consent: options.consent })
   const accounts = await loadGis()
   return new Promise<string>((resolve, reject) => {
     const client = accounts.oauth2.initTokenClient({
