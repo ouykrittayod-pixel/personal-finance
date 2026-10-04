@@ -1190,6 +1190,11 @@ export const th = {
   'drive.connect.busy': 'กำลังเชื่อมต่อ…',
   'drive.connect.loading': 'กำลังโหลดข้อมูลจาก Google Drive…',
   'drive.connect.checking': 'กำลังเปิดแอป…',
+  'drive.sheet.title': 'Google Sheet สำหรับดูข้อมูล',
+  'drive.sheet.hint': 'แอปอัปเดตชีตให้ทุกครั้งที่ซิงก์ ใช้ดูหรือกรองข้อมูลได้ แต่ให้แก้ข้อมูลในแอปเท่านั้น',
+  'drive.sheet.open': 'เปิด Google Sheet',
+  'drive.sheet.pending': 'แอปจะสร้างชีตให้หลังซิงก์ครั้งแรก',
+  'drive.sheet.error': 'อัปเดต Google Sheet ไม่สำเร็จ ข้อมูลใน Drive ปลอดภัย แอปจะลองใหม่รอบถัดไป',
 } as const satisfies Record<string, string>
 
 export type Messages = { readonly [K in keyof typeof th]: string }

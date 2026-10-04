@@ -10,6 +10,8 @@ import { GoogleAuthError } from '@/lib/google/auth'
 import { createFakeDrive, type FakeDrive } from '@/test/fake-drive'
 import { baht, makeAccount, makeTx } from '@/test/factories'
 import { createDriveSync, type DriveAuth } from './drive-sync'
+import type { SheetMirror } from './google-sheet'
+import type { SheetTab } from './sheet-tabs'
 import { syncOnce } from './sync-engine'
 
 const opened: FinanceDatabase[] = []
@@ -71,8 +73,9 @@ function fakeGoogle(first: Account): FakeGoogle {
   return google
 }
 
-function controller(database: FinanceDatabase, google: FakeGoogle, accounts: Account[], configured = true) {
+function controller(database: FinanceDatabase, google: FakeGoogle, accounts: Account[], configured = true, mirror?: SheetMirror) {
   return createDriveSync({
+    ...(mirror ? { createMirror: () => mirror } : {}),
     database,
     configured,
     auth: google.auth,
@@ -249,5 +252,54 @@ describe('Drive connection on a device', () => {
     await drive.replaceRemoteWithLocal()
     expect(me.drive.snapshot()!.data.accounts.map((a) => a.id)).toEqual(['restored'])
     expect(me.drive.snapshot()!.data.transactions).toEqual([])
+  })
+
+  it('keeps the read-only sheet up to date after syncs that changed data', async () => {
+    const me = account('me')
+    await seedDrive(me)
+    const database = await device()
+    const google = fakeGoogle(me)
+    const published: SheetTab[][] = []
+    const mirror: SheetMirror = {
+      publish: async (tabs) => {
+        published.push(tabs)
+        return 'https://docs.google.com/spreadsheets/d/s1'
+      },
+    }
+    const drive = controller(database, google, [me], true, mirror)
+    await drive.start()
+    await drive.connect()
+    expect(drive.getState().sheetUrl).toBe('https://docs.google.com/spreadsheets/d/s1')
+    expect(published).toHaveLength(1)
+    expect(published[0]!.find((t) => t.title === 'รายการ')!.rows).toHaveLength(1)
+
+    await drive.sync() // nothing changed: the sheet is not rewritten
+    expect(published).toHaveLength(1)
+    await database.transactions.add(makeTx({ id: 'coffee', type: 'expense', amountSatang: baht(60), accountId: 'kbank' }))
+    await drive.sync()
+    expect(published).toHaveLength(2)
+  })
+
+  it('a failed sheet update never fails the sync, and is retried next time', async () => {
+    const me = account('me')
+    const database = await device()
+    const google = fakeGoogle(me)
+    let fail = true
+    let publishes = 0
+    const mirror: SheetMirror = {
+      publish: async () => {
+        publishes++
+        if (fail) throw new Error('Sheets quota')
+        return 'https://docs.google.com/spreadsheets/d/s1'
+      },
+    }
+    const drive = controller(database, google, [me], true, mirror)
+    await drive.start()
+    await drive.connect()
+    expect(drive.getState()).toMatchObject({ status: 'synced', sheetError: true })
+    fail = false
+    await drive.sync()
+    expect(publishes).toBe(2)
+    expect(drive.getState()).toMatchObject({ status: 'synced', sheetError: false, sheetUrl: 'https://docs.google.com/spreadsheets/d/s1' })
   })
 })

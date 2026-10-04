@@ -20,6 +20,8 @@ import { todayISO } from '@/lib/dates'
 import { GoogleAuthError, type GoogleUser } from '@/lib/google/auth'
 import { OfflineError } from './google-drive-store'
 import { RemoteFormatError } from './remote-format'
+import type { SheetMirror } from './google-sheet'
+import { buildSheetTabs } from './sheet-tabs'
 import { syncOnce, type RemoteStore } from './sync-engine'
 
 export type DriveStatus = 'unconfigured' | 'not_linked' | 'connecting' | 'syncing' | 'synced' | 'needs_sign_in' | 'offline' | 'error'
@@ -45,6 +47,10 @@ export interface DriveLink {
   replaceRemote?: boolean
   /** Some receipt files did not move last time: do not skip the next pass. */
   retryAttachments?: boolean
+  /** The read-only Google Sheet (same sheet from every device). */
+  sheetUrl?: string
+  /** The sheet missed the latest data (last update failed): update it on the next pass. */
+  sheetStale?: boolean
 }
 
 export interface DriveState {
@@ -55,6 +61,9 @@ export interface DriveState {
   pending: number
   error: DriveErrorCode | null
   busy: boolean
+  sheetUrl: string | null
+  /** The last sheet update failed (data is safe in Drive; the sheet is behind). */
+  sheetError: boolean
 }
 
 /** What the controller needs from Google (real: lib/google/auth; tests: a fake). */
@@ -73,6 +82,8 @@ export interface DriveSyncOptions {
   auth: DriveAuth
   /** Builds the Drive store for a device; `getToken` throws GoogleAuthError when a tap is needed. */
   createStore: (getToken: () => Promise<string>, deviceId: string) => RemoteStore
+  /** The read-only Google Sheet; omitted = no sheet. */
+  createMirror?: (getToken: () => Promise<string>) => SheetMirror
   now?: () => string
   /** Delay before syncing after a local change. */
   debounceMs?: number
@@ -87,7 +98,7 @@ export function createDriveSync(options: DriveSyncOptions) {
   const debounceMs = options.debounceMs ?? 2500
   const intervalMs = options.intervalMs ?? 3 * 60_000
 
-  let state: DriveState = { status: options.configured ? 'connecting' : 'unconfigured', email: null, lastSyncAt: null, pending: 0, error: null, busy: false }
+  let state: DriveState = { status: options.configured ? 'connecting' : 'unconfigured', email: null, lastSyncAt: null, pending: 0, error: null, busy: false, sheetUrl: null, sheetError: false }
   const listeners = new Set<() => void>()
   const set = (patch: Partial<DriveState>) => {
     state = { ...state, ...patch }
@@ -119,6 +130,27 @@ export function createDriveSync(options: DriveSyncOptions) {
     return { status: 'error', error: 'failed' }
   }
 
+  /** Rewrite the read-only sheet from the cache (which now equals Drive). Failure never fails the sync. */
+  async function updateSheet(stamp: string): Promise<{ sheetUrl?: string; sheetStale: boolean }> {
+    try {
+      const source = await database.transaction('r', [database.accounts, database.categories, database.transactions, database.debts, database.budgets], async () => ({
+        accounts: await database.accounts.toArray(),
+        categories: await database.categories.toArray(),
+        transactions: await database.transactions.toArray(),
+        debts: await database.debts.toArray(),
+        budgets: await database.budgets.toArray(),
+      }))
+      const url = await options.createMirror!(getToken).publish(buildSheetTabs(source, stamp))
+      set({ sheetUrl: url, sheetError: false })
+      return { sheetUrl: url, sheetStale: false }
+    } catch (error) {
+      if (error instanceof GoogleAuthError) throw error
+      console.warn('Sheet update failed', error instanceof Error ? error.message : error)
+      set({ sheetError: true })
+      return { sheetUrl: state.sheetUrl ?? undefined, sheetStale: true }
+    }
+  }
+
   async function runSync(): Promise<void> {
     const link = await readLink()
     if (!link) return
@@ -132,7 +164,10 @@ export function createDriveSync(options: DriveSyncOptions) {
       })
       const stamp = now()
       const { replaceRemote: _done, ...rest } = link
-      await writeLink({ ...rest, remoteVersion: result.version, lastSyncAt: stamp, retryAttachments: result.attachmentsFailed > 0 })
+      const changed = result.uploaded || result.downloaded > 0
+      let sheet: { sheetUrl?: string; sheetStale?: boolean } = { sheetUrl: link.sheetUrl, sheetStale: link.sheetStale }
+      if (options.createMirror && (changed || link.sheetStale || !link.sheetUrl)) sheet = await updateSheet(stamp)
+      await writeLink({ ...rest, ...sheet, remoteVersion: result.version, lastSyncAt: stamp, retryAttachments: result.attachmentsFailed > 0 })
       // New rules or payments from another device: bring scheduled occurrences up to date here too.
       if (result.downloaded > 0)
         await createScheduledPaymentsRepository(database)
@@ -216,7 +251,7 @@ export function createDriveSync(options: DriveSyncOptions) {
         set({ status: 'not_linked', email: null, lastSyncAt: null, error: null })
         return
       }
-      set({ status: 'synced', email: link.email, lastSyncAt: link.lastSyncAt, pending: await database.syncOutbox.count() })
+      set({ status: 'synced', email: link.email, lastSyncAt: link.lastSyncAt, pending: await database.syncOutbox.count(), sheetUrl: link.sheetUrl ?? null })
       startTriggers()
       await sync()
     },
@@ -248,6 +283,7 @@ export function createDriveSync(options: DriveSyncOptions) {
           remoteVersion: keep?.remoteVersion ?? null,
           lastSyncAt: keep?.lastSyncAt ?? null,
           ...(keep?.replaceRemote ? { replaceRemote: true } : {}),
+          ...(keep?.sheetUrl ? { sheetUrl: keep.sheetUrl } : {}),
         })
         set({ status: 'syncing', email: user.email, error: null })
         startTriggers()
@@ -281,7 +317,7 @@ export function createDriveSync(options: DriveSyncOptions) {
       await running?.catch(() => undefined)
       await auth.signOut().catch(() => undefined)
       await clearLocalCache(database)
-      set({ status: 'not_linked', email: null, lastSyncAt: null, pending: 0, error: null, busy: false })
+      set({ status: 'not_linked', email: null, lastSyncAt: null, pending: 0, error: null, busy: false, sheetUrl: null, sheetError: false })
     },
 
     /** Tests: stop timers and listeners. */

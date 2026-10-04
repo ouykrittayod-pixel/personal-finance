@@ -1,4 +1,4 @@
-import { LogOut, RotateCw } from 'lucide-react'
+import { FileSpreadsheet, LogOut, RotateCw } from 'lucide-react'
 import { useState } from 'react'
 import { PrimaryButton, SecondaryButton } from '@/components/actions/buttons'
 import { useToast } from '@/components/feedback/toast-context'
@@ -60,6 +60,22 @@ export function DriveCard() {
             {hint}
           </p>
         )}
+        <div className="flex flex-col gap-2 rounded-lg border p-3">
+          <div className="flex items-start gap-3">
+            <FileSpreadsheet className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="font-medium">{t('drive.sheet.title')}</p>
+              <p className="text-muted-foreground">{state.sheetError ? t('drive.sheet.error') : state.sheetUrl ? t('drive.sheet.hint') : t('drive.sheet.pending')}</p>
+            </div>
+          </div>
+          {state.sheetUrl && (
+            <SecondaryButton asChild className="self-start">
+              <a href={state.sheetUrl} target="_blank" rel="noopener noreferrer">
+                {t('drive.sheet.open')}
+              </a>
+            </SecondaryButton>
+          )}
+        </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           {needsTap ? (
             <PrimaryButton loading={state.busy} onClick={() => void driveSync.connect()}>

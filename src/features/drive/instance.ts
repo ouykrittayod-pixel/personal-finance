@@ -5,6 +5,7 @@ import { currentAccessToken, fetchGoogleUser, requestAccessToken, revokeAccess }
 import { driveConfigured } from '@/lib/google/config'
 import { createDriveSync } from './drive-sync'
 import { createDriveStore } from './google-drive-store'
+import { createGoogleSheetMirror } from './google-sheet'
 
 export const driveSync = createDriveSync({
   database: db,
@@ -16,6 +17,7 @@ export const driveSync = createDriveSync({
     signOut: revokeAccess,
   },
   createStore: (getToken, deviceId) => createDriveStore({ getToken, deviceId }),
+  createMirror: (getToken) => createGoogleSheetMirror({ getToken }),
 })
 
 export const useDriveSync = () => useSyncExternalStore(driveSync.subscribe, driveSync.getState)
