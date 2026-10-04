@@ -1,6 +1,6 @@
 import type { Attachment, AttachmentBlob, Debt, ID, Transaction } from '@/domain/entities'
 import { isRevolving, validateLoanTimeline } from '@/domain/debts'
-import { buildTransaction, type DraftIssue, type ExpenseDraft, type TransactionDraft } from '@/domain/transactions'
+import { buildTransaction, latestExpenseDate, type DraftIssue, type ExpenseDraft, type TransactionDraft } from '@/domain/transactions'
 import type { FinanceDatabase } from '../dexie'
 import { StorageError, toStorageError } from '../errors'
 
@@ -142,7 +142,7 @@ export function createTransactionsRepository(database: FinanceDatabase) {
         const result = buildTransaction(
           draft,
           { accounts: context.openAccounts, categories: context.openCategories, debts: context.debts },
-          { id: meta.id, now: meta.now },
+          { id: meta.id, now: meta.now, latestDate: latestExpenseDate(meta.now) },
         )
         if (!result.ok) throw new ExpenseValidationError(result.issues)
         await assertLoanIntegrity(result.transaction, context.debts)
@@ -213,7 +213,7 @@ export function createTransactionsRepository(database: FinanceDatabase) {
           const result = buildTransaction(
             draft,
             { accounts: usable, categories: context.categories, debts: context.debts },
-            { id, now: meta.now, existing },
+            { id, now: meta.now, existing, latestDate: latestExpenseDate(meta.now) },
           )
           if (!result.ok) throw new ExpenseValidationError(result.issues)
           await assertLoanIntegrity(result.transaction, context.debts)

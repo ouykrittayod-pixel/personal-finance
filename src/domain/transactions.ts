@@ -23,6 +23,7 @@
 import type { Account, AccountClass, AccountKind, DebtKind, ID, ISODate, Transaction, TransactionType } from './entities'
 import { LIABILITY_ACCOUNT_KINDS } from './entities'
 import { negate, sum as sumMoney, type Satang } from './money'
+import { addDays } from './recurrence'
 
 export function accountClassOf(kind: AccountKind): AccountClass {
   return (LIABILITY_ACCOUNT_KINDS as readonly string[]).includes(kind) ? 'liability' : 'asset'
@@ -177,6 +178,7 @@ export type DraftIssue =
   | 'principal_exceeds_outstanding'
   | 'transfer_liability_not_allowed'
   | 'date_invalid'
+  | 'date_in_future'
   | 'type_change_not_allowed'
   | TransactionIssue
 
@@ -211,6 +213,21 @@ export interface BuildMeta {
    * fields the form does not edit (payee, tags, scheduled payment, debt) are kept.
    */
   existing?: Transaction
+  /**
+   * Latest date an expense may have: an expense is money already spent, so it is
+   * never dated in the future (planned bills are scheduled payments until paid).
+   * Unset = not checked (e.g. an import preview). See latestExpenseDate.
+   */
+  latestDate?: ISODate
+}
+
+/**
+ * The latest expense date allowed at `now` (an ISO timestamp, UTC): the next
+ * UTC day, because the user's own "today" can be a day ahead of UTC (UTC+14 at
+ * most). Forms limit the picker to the user's today; this is the storage guard.
+ */
+export function latestExpenseDate(now: string): ISODate {
+  return addDays(now.slice(0, 10), 1)
 }
 
 export type BuildResult = { ok: true; transaction: Transaction } | { ok: false; issues: DraftIssue[] }
@@ -237,6 +254,8 @@ export function buildTransaction(draft: TransactionDraft, context: DraftContext,
 
   if (!draft.accountId) issues.push('account_required')
   if (!isCalendarDate(draft.date)) issues.push('date_invalid')
+  // An edit that keeps an existing date is never refused for it.
+  else if (draft.type === 'expense' && meta.latestDate && draft.date > meta.latestDate && draft.date !== existing?.date) issues.push('date_in_future')
 
   let categoryId: ID | undefined
   let toAccountId: ID | undefined

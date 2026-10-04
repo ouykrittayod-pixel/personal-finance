@@ -22,7 +22,7 @@ beforeEach(async () => {
 })
 
 describe('QuickEntryProvider', () => {
-  it('"+" offers expense, income, bill and debt; expense opens the form (bill is not available yet)', async () => {
+  it('"+" offers expense, income, bill and debt; expense opens the form', async () => {
     const user = userEvent.setup()
     render(
       <ToastProvider>
@@ -35,7 +35,7 @@ describe('QuickEntryProvider', () => {
     const menu = await screen.findByRole('dialog', { name: t('quickAdd.title') })
     const expense = within(menu).getByRole('button', { name: new RegExp(t('quickAdd.expense')) })
     expect(within(menu).getByRole('button', { name: new RegExp(t('quickAdd.income')) })).toBeEnabled()
-    expect(within(menu).getByRole('button', { name: new RegExp(t('quickAdd.bill')) })).toBeDisabled()
+    expect(within(menu).getByRole('button', { name: new RegExp(t('quickAdd.bill')) })).toBeEnabled()
     expect(within(menu).getByRole('button', { name: new RegExp(t('quickAdd.debt')) })).toBeEnabled()
 
     await user.click(expense)

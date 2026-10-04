@@ -106,3 +106,23 @@ describe('amounts', () => {
     expect((await database.transactions.get('tx-1'))?.amountSatang).toBe(30)
   })
 })
+
+describe('an expense is money already spent: never dated in the future', () => {
+  it('refuses a future date and stores nothing', async () => {
+    await expect(repo.createExpense({ ...draft, date: '2026-09-30' }, [], meta())).rejects.toMatchObject({ issues: ['date_in_future'] })
+    expect(await database.transactions.count()).toBe(0)
+  })
+
+  it('accepts today in any time zone (the UTC day after `now`)', async () => {
+    // The user's own "today" can be a day ahead of UTC (Bangkok after 17:00 UTC), so the next UTC day is allowed.
+    await expect(repo.createExpense({ ...draft, date: '2026-09-26' }, [], meta('tx-tomorrow'))).resolves.toMatchObject({ status: 'created' })
+  })
+
+  it('an edit may keep a stored date but not move it into the future', async () => {
+    await repo.createExpense(draft, [], meta('tx-edit'))
+    const edit = (date: string) =>
+      repo.update('tx-edit', { type: 'expense', amountSatang: baht(200), categoryId: 'food', accountId: 'cash', date }, { add: [], remove: [] }, meta())
+    await expect(edit('2026-10-15')).rejects.toBeInstanceOf(ExpenseValidationError)
+    await expect(edit('2026-09-24')).resolves.toMatchObject({ amountSatang: baht(200), date: '2026-09-24' })
+  })
+})
