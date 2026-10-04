@@ -79,7 +79,7 @@ describe('Transactions — list', () => {
     renderLedger()
     const region = await list()
     const headings = within(region).getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-    expect(headings).toEqual(['25 กันยายน 2026', '24 กันยายน 2026', '20 กันยายน 2026', '18 กันยายน 2026'])
+    expect(headings).toEqual(['25/09/2026', '24/09/2026', '20/09/2026', '18/09/2026'])
     const titles = within(region).getAllByRole('button').map((b) => b.textContent)
     expect(titles[0]).toContain('กาแฟ')
     expect(titles[1]).toContain('ข้าวกลางวัน')
@@ -192,7 +192,7 @@ describe('Transactions — detail', () => {
     expect(await within(dialog).findByText('ใบเสร็จ.jpg')).toBeInTheDocument()
     expect(getBlob).toHaveBeenCalledWith('att1')
     expect(within(dialog).getByText('🍚 อาหาร')).toBeInTheDocument()
-    expect(within(dialog).getByText('25 กันยายน 2026')).toBeInTheDocument()
+    expect(within(dialog).getByText('25/09/2026')).toBeInTheDocument()
     expect(within(dialog).getByText(t('detail.createdAt'))).toBeInTheDocument()
   })
 

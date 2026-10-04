@@ -5,6 +5,7 @@
 import type { FinanceDatabase } from '@/db/dexie'
 import type { Account, Category, Debt, Transaction } from '@/domain/entities'
 import { toDecimalString, type Satang } from '@/domain/money'
+import { formatDate } from '@/lib/dates'
 import { t } from '@/lib/i18n'
 import { BACKUP_CURRENCY } from './format'
 
@@ -79,7 +80,8 @@ export function transactionsToCsv(
     const from = accountName.get(tx.accountId) ?? ''
     const account = tx.toAccountId ? `${from} → ${accountName.get(tx.toAccountId) ?? ''}` : from
     return [
-      cell(tx.date, false),
+      // dd/mm/yyyy like the app (Excel with a Thai or day-first region reads it as a date).
+      cell(formatDate(tx.date), false),
       cell(t(`txType.${tx.type}`)),
       cell(toDecimalString(tx.amountSatang), false),
       cell(tx.categoryId ? (categoryName.get(tx.categoryId) ?? '') : ''),

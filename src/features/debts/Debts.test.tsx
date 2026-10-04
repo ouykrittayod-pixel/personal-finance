@@ -122,7 +122,7 @@ describe('Debts — overview', () => {
     expect(within(card).getByText(t('recurring.overdueDays', { days: 20 }))).toBeInTheDocument() // 5 Sep installment is unpaid
 
     const dialog = await openDetail(user, /สินเชื่อบ้าน/)
-    expect(within(dialog).getByText(t('debts.detail.openingValue', { amount: '฿1,000,000', date: '1 กันยายน 2026' }))).toBeInTheDocument()
+    expect(within(dialog).getByText(t('debts.detail.openingValue', { amount: '฿1,000,000', date: '01/09/2026' }))).toBeInTheDocument()
     const rate = within(dialog).getByText(t('debts.detail.rate')).closest('div')!
     expect(within(rate).getByText(t('debts.unknown'))).toBeInTheDocument()
     expect(within(dialog).getByText(t('debts.detail.estimateUnavailable'))).toBeInTheDocument()
@@ -204,7 +204,7 @@ describe('Debts — repayment', () => {
   it('pays the installment with a required principal / interest / fee split', async () => {
     const { user } = renderDebts()
     const dialog = await openDetail(user, /สินเชื่อบ้าน/)
-    await user.click(within(dialog).getAllByRole('button', { name: t('debts.action.payFor', { date: '5 ก.ย. 2026' }) })[0]!)
+    await user.click(within(dialog).getAllByRole('button', { name: t('debts.action.payFor', { date: '05/09/2026' }) })[0]!)
     const pay = await screen.findByRole('dialog', { name: t('debts.pay.title', { name: 'สินเชื่อบ้าน' }) })
     expect(within(pay).getByLabelText(t('form.amount'))).toHaveDisplayValue(/^18,?000$/)
 

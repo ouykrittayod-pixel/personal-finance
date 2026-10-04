@@ -91,6 +91,7 @@ export function PayScheduledSheet({ payment, obligation, detail, today, onClose,
             type={type}
             // Date and account are what the user confirms here, so show them.
             detailsInitiallyOpen
+            payment={{ dueDate: payment.dueDate, income }}
             data={{
               categories: detail.categories.filter((c) => c.kind === (income ? 'income' : 'expense') && (!c.archivedAt || c.id === obligation.categoryId)),
               accounts: detail.accounts.filter((a) => !a.archivedAt),

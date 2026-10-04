@@ -26,15 +26,15 @@ describe('Google Sheet tables', () => {
 
   it('lists transactions newest first, with Thai labels and baht amounts; text stays text', () => {
     const rows = tab('รายการ').rows
-    expect(rows.map((r) => r[0])).toEqual(['2026-10-02', '2026-10-01', '2026-09-25'])
-    expect(rows[0]).toEqual(['2026-10-02', 'รายจ่าย', 125.5, 'บัตร', '', 'อาหาร', '', '=HYPERLINK("x")', ''])
+    expect(rows.map((r) => r[0])).toEqual(['02/10/2026', '01/10/2026', '25/09/2026'])
+    expect(rows[0]).toEqual(['02/10/2026', 'รายจ่าย', 125.5, 'บัตร', '', 'อาหาร', '', '=HYPERLINK("x")', ''])
     expect(rows[2]!.slice(1, 4)).toEqual(['รายรับ', 27500, 'KBank'])
   })
 
   it('monthly summary: income, expenses, debt payments and what is left, newest month first', () => {
     expect(tab('สรุปรายเดือน').rows).toEqual([
-      ['2026-10', 0, 425.5, 0, -425.5],
-      ['2026-09', 27500, 0, 0, 27500],
+      ['10/2026', 0, 425.5, 0, -425.5],
+      ['09/2026', 27500, 0, 0, 27500],
     ])
   })
 
@@ -43,7 +43,7 @@ describe('Google Sheet tables', () => {
       ['KBank', 37200],
       ['บัตร', -125.5],
     ])
-    expect(tab('งบประมาณ').rows).toEqual([['2026-10', 'อาหาร', 1000, 425.5, 574.5]])
+    expect(tab('งบประมาณ').rows).toEqual([['10/2026', 'อาหาร', 1000, 425.5, 574.5]])
     expect(tab('หนี้').rows).toEqual([['สินเชื่อรถ', 'สินเชื่อรถยนต์', 200000, 'กำลังผ่อน']])
   })
 

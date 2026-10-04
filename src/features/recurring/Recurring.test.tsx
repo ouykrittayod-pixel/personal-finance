@@ -126,7 +126,7 @@ describe('Recurring — create', () => {
     await user.click(screen.getByRole('radio', { name: /อินเทอร์เน็ต/ }))
     await user.selectOptions(screen.getByLabelText(t('recurring.form.day')), '15')
     // Start date defaults to today (25 Sep), so the first due date is next month's 15th.
-    expect(screen.getByText(/ครบกำหนดครั้งแรก: 15 ตุลาคม 2026/)).toBeInTheDocument()
+    expect(screen.getByText(/ครบกำหนดครั้งแรก: 15/10/2026/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: t('recurring.form.save') }))
 
     const row = await within(await list()).findByRole('button', { name: /Internet/ })
@@ -215,7 +215,7 @@ describe('Recurring — pay', () => {
   it('records the real payment: actual date and amount, one linked expense, balance updated', async () => {
     const { user } = renderRecurring()
     const pay = await openPay(user)
-    expect(within(pay).getByText('6 ก.ย. 2026')).toBeInTheDocument()
+    expect(within(pay).getByText('06/09/2026')).toBeInTheDocument()
     expect(within(pay).getByText('฿7,800')).toBeInTheDocument()
 
     const amount = within(pay).getByLabelText(t('form.amount'))

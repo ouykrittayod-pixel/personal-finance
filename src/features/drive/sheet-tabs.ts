@@ -1,7 +1,8 @@
 /**
  * What the read-only Google Sheet shows: plain tables built from the data set,
  * one tab each. Amounts are baht numbers (for sums and filters in Sheets);
- * dates are "YYYY-MM-DD" text (sorts correctly, no time-zone conversion).
+ * dates are "dd/mm/yyyy" text and months "mm/yyyy" (as everywhere in the app; rows
+ * are already sorted, newest first).
  * Pure: the same data always gives the same tables.
  */
 import { getCategoryBudgetSummary, isOverallBudget } from '@/domain/budget'
@@ -9,7 +10,10 @@ import { debtPosition } from '@/domain/debts'
 import type { Account, Budget, Category, Debt, Transaction } from '@/domain/entities'
 import { toDecimalString, type Satang } from '@/domain/money'
 import { accountBalances, monthTotals } from '@/domain/reporting'
-import { formatDateTime } from '@/lib/formatting'
+import { formatDate, formatDateTime } from '@/lib/formatting'
+
+/** "2026-10" → "10/2026". */
+const monthText = (month: string) => `${month.slice(5, 7)}/${month.slice(0, 4)}`
 import { t, type MessageKey } from '@/lib/i18n'
 
 export type Cell = string | number
@@ -44,7 +48,7 @@ export function buildSheetTabs(source: SheetSource, updatedAt: string): SheetTab
     header: ['เดือน', 'รายรับ', 'รายจ่าย', 'ชำระหนี้', 'คงเหลือ (รายรับ − รายจ่าย − ชำระหนี้)'],
     rows: months.map((month) => {
       const m = monthTotals(source.transactions, month)
-      return [month, baht(m.income), baht(m.expense), baht(m.debtPayment), baht((m.income - m.expense - m.debtPayment) as Satang)]
+      return [monthText(month), baht(m.income), baht(m.expense), baht(m.debtPayment), baht((m.income - m.expense - m.debtPayment) as Satang)]
     }),
   }
 
@@ -54,7 +58,7 @@ export function buildSheetTabs(source: SheetSource, updatedAt: string): SheetTab
     rows: [...source.transactions]
       .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id))
       .map((tx) => [
-        tx.date,
+        formatDate(tx.date),
         label(`txType.${tx.type}`),
         baht(tx.amountSatang),
         accountName.get(tx.accountId) ?? '',
@@ -72,7 +76,7 @@ export function buildSheetTabs(source: SheetSource, updatedAt: string): SheetTab
     header: ['บัญชี', 'ประเภท', 'ยอดตั้งต้น', 'วันที่ตั้งต้น', 'ยอดปัจจุบัน (ติดลบ = ค้างชำระ)', 'สถานะ'],
     rows: [...source.accounts]
       .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'th'))
-      .map((a) => [a.name, label(`account.kind.${a.kind}`), baht(a.openingBalanceSatang), a.openingDate, baht(balances.get(a.id) ?? a.openingBalanceSatang), a.archivedAt ? 'เก็บถาวร' : 'ใช้งาน']),
+      .map((a) => [a.name, label(`account.kind.${a.kind}`), baht(a.openingBalanceSatang), formatDate(a.openingDate), baht(balances.get(a.id) ?? a.openingBalanceSatang), a.archivedAt ? 'เก็บถาวร' : 'ใช้งาน']),
   }
 
   const debts: SheetTab = {
@@ -93,7 +97,7 @@ export function buildSheetTabs(source: SheetSource, updatedAt: string): SheetTab
       .sort((a, b) => b.month.localeCompare(a.month) || (categoryName.get(a.categoryId) ?? '').localeCompare(categoryName.get(b.categoryId) ?? '', 'th'))
       .map((b) => {
         const line = getCategoryBudgetSummary(b, [...source.transactions])
-        return [b.month, isOverallBudget(b) ? 'รวมทั้งเดือน' : (categoryName.get(b.categoryId) ?? ''), baht(line.limit), baht(line.spent), baht(line.remaining)]
+        return [monthText(b.month), isOverallBudget(b) ? 'รวมทั้งเดือน' : (categoryName.get(b.categoryId) ?? ''), baht(line.limit), baht(line.spent), baht(line.remaining)]
       }),
   }
 

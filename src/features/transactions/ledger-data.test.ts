@@ -34,7 +34,7 @@ describe('buildLedger', () => {
   it('shows this month, newest first, grouped by date with Thai long dates', () => {
     const model = buildLedger(raw, filters(), TODAY, 50)
     expect(ids(model)).toEqual(['coffee', 'lunch', 'salary', 'pay', 'pay2', 'move'])
-    expect(model.groups.map((g) => g.label)).toEqual(['25 กันยายน 2026', '24 กันยายน 2026', '23 กันยายน 2026', '22 กันยายน 2026'])
+    expect(model.groups.map((g) => g.label)).toEqual(['25/09/2026', '24/09/2026', '23/09/2026', '22/09/2026'])
     expect(model.matchCount).toBe(6)
     expect(model.emptyReason).toBeNull()
   })

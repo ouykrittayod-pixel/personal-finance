@@ -109,4 +109,9 @@ describe('DateInput', () => {
     expect(onChange).toHaveBeenCalledWith('2026-09-24')
     expect(screen.getByLabelText(t('form.date'))).toHaveValue('2026-09-25')
   })
+
+  it('always shows the date as dd/mm/yyyy, whatever the device region', () => {
+    render(<DateInput value="2026-01-05" today="2026-09-25" onValueChange={() => {}} shortcuts={false} />)
+    expect(screen.getByText('05/01/2026')).toBeInTheDocument()
+  })
 })

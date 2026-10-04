@@ -14,6 +14,7 @@ import { formatMoney, sum, tryParseBaht, type Satang } from '@/domain/money'
 import type { FrequentExpense } from '@/domain/suggestions'
 import { accountClassOf, type EditableType, type TransactionDraft } from '@/domain/transactions'
 import { AttachmentPicker, type PendingAttachment } from '@/features/attachments'
+import { addDaysISO } from '@/lib/dates'
 import { formatDate } from '@/lib/formatting'
 import { APP_LOCALE, t } from '@/lib/i18n'
 import { formatTHB } from '@/lib/formatting'
@@ -71,6 +72,12 @@ export interface TransactionFormProps {
   existingAttachments?: readonly ExistingAttachment[]
   /** Show the details section (account, date, note…) expanded from the start. */
   detailsInitiallyOpen?: boolean
+  /**
+   * Settling a scheduled payment: the date it really happened goes right under
+   * the amount ("วันที่จ่ายจริง"), so a payment made earlier is easy to back-date;
+   * a past due date is offered as a one-tap choice.
+   */
+  payment?: { dueDate: ISODate; income?: boolean }
   today: ISODate
   /** Persist. Rejects with a repository/storage error on failure; the form then shows a Thai message. */
   onSubmit: (draft: TransactionDraft, attachments: AttachmentEdits) => Promise<void>
@@ -121,6 +128,7 @@ export function TransactionForm({
   defaults,
   existingAttachments = [],
   detailsInitiallyOpen = false,
+  payment,
   today,
   onSubmit,
   onSavingChange,
@@ -252,6 +260,27 @@ export function TransactionForm({
 
   const visibleExisting = existingAttachments.filter((item) => !removed.has(item.attachment.id))
 
+  const dueShortcut =
+    payment && payment.dueDate < today && payment.dueDate !== addDaysISO(today, -1)
+      ? [{ label: t('txForm.dueDateShortcut', { date: formatDate(payment.dueDate) }), date: payment.dueDate }]
+      : []
+  const dateField = (
+    <div className="flex flex-col gap-1.5">
+      <DateInput
+        label={payment ? t(payment.income ? 'txForm.receivedOn' : 'txForm.paidOn') : undefined}
+        value={date}
+        today={today}
+        max={date > today ? date : today}
+        extraShortcuts={dueShortcut}
+        onValueChange={(next) => {
+          setDate(next)
+          clearFieldError('date')
+        }}
+      />
+      <FieldError message={errors.fields.date} />
+    </div>
+  )
+
   return (
     <form id={formId} onSubmit={handleSubmit} noValidate aria-busy={saving || undefined} className="flex flex-col gap-section">
       {errors.form && (
@@ -279,6 +308,8 @@ export function TransactionForm({
           }
         }}
       />
+
+      {payment && dateField}
 
       {debt && (
         <div className="flex items-center gap-3 rounded-md border px-3 py-2.5">
@@ -456,18 +487,7 @@ export function TransactionForm({
             </div>
           )}
 
-          <div className="flex flex-col gap-1.5">
-            <DateInput
-              value={date}
-              today={today}
-              max={date > today ? date : today}
-              onValueChange={(next) => {
-                setDate(next)
-                clearFieldError('date')
-              }}
-            />
-            <FieldError message={errors.fields.date} />
-          </div>
+          {!payment && dateField}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={noteId}>

@@ -52,26 +52,28 @@ const dateFormatters = new Map<string, Intl.DateTimeFormat>()
 
 export type DateStyle = 'short' | 'medium' | 'long' | 'full'
 
-/**
- * Explicit fields rather than `dateStyle`: with the Gregorian calendar forced,
- * Thai `dateStyle: 'long'` adds the era ("25 กันยายน ค.ศ. 2026").
- */
-const DATE_STYLE_OPTIONS: Record<DateStyle, Intl.DateTimeFormatOptions> = {
-  short: { day: 'numeric', month: 'numeric', year: 'numeric' },
-  medium: { day: 'numeric', month: 'short', year: 'numeric' },
-  long: { day: 'numeric', month: 'long', year: 'numeric' },
-  full: { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+/** "25/09/2026": day/month/Gregorian year, always zero-padded. */
+function ddmmyyyy(date: Date): string {
+  return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`
 }
 
-/** Display a date in Thai with Gregorian years: "25 ก.ย. 2026" (medium), "25 กันยายน 2026" (long). */
+/**
+ * Every date in the app reads dd/mm/yyyy with the Gregorian year: "25/09/2026"
+ * (never the Buddhist year, never a month name). 'full' adds the weekday:
+ * "วันศุกร์ 25/09/2026". Months on their own use formatYearMonth.
+ */
 export function formatDate(value: ISODate | Date, style: DateStyle = 'medium', locale: string = APP_LOCALE): string {
-  const key = `${locale}|${style}`
+  const date = typeof value === 'string' ? parseISODate(value) : value
+  if (style !== 'full') return ddmmyyyy(date)
+  const key = `${locale}|weekday`
   let formatter = dateFormatters.get(key)
   if (!formatter) {
-    formatter = new Intl.DateTimeFormat(locale, DATE_STYLE_OPTIONS[style])
+    formatter = new Intl.DateTimeFormat(locale, { weekday: 'long' })
     dateFormatters.set(key, formatter)
   }
-  return formatter.format(typeof value === 'string' ? parseISODate(value) : value)
+  return `${formatter.format(date)} ${ddmmyyyy(date)}`
 }
 
 /**
@@ -140,14 +142,11 @@ export function formatYearMonth(month: YearMonth, style: 'long' | 'short' | 'sho
   return formatter.format(parseISODate(`${month}-01`))
 }
 
-let dateTimeFormatter: Intl.DateTimeFormat | undefined
-
-/** A UTC timestamp shown in local time, e.g. "25 ก.ย. 2026 12:15" (Gregorian). */
-export function formatDateTime(timestamp: string, locale: string = APP_LOCALE): string {
+/** A UTC timestamp shown in local time: "25/09/2026 12:15". */
+export function formatDateTime(timestamp: string): string {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return timestamp
-  dateTimeFormatter ??= new Intl.DateTimeFormat(locale, { ...DATE_STYLE_OPTIONS.medium, hour: '2-digit', minute: '2-digit' })
-  return dateTimeFormatter.format(date)
+  return `${ddmmyyyy(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`
 }
 
 const weekdayFormatter = new Intl.DateTimeFormat(APP_LOCALE, { weekday: 'long' })
