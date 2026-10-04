@@ -1,5 +1,5 @@
 import { createElement, useRef, useState, type ReactNode } from 'react'
-import { Archive, ArchiveRestore, ArrowLeftRight, Pencil, SearchX } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeftRight, Pencil, Scale, SearchX } from 'lucide-react'
 import { PrimaryButton, SecondaryButton } from '@/components/actions/buttons'
 import { EmptyState } from '@/components/feedback/EmptyState'
 import { LoadingState } from '@/components/feedback/LoadingState'
@@ -18,6 +18,7 @@ import { formatDate, formatTHB } from '@/lib/formatting'
 import { t } from '@/lib/i18n'
 import type { AccountDetail } from '../accounts-data'
 import { accountActionFailureMessage, type AccountsOps } from '../accounts-ops'
+import { ReconcileDialog } from './ReconcileDialog'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -60,13 +61,14 @@ export interface AccountDetailSheetProps {
   onEdit: (account: Account) => void
   onTransfer: (fromAccountId: string) => void
   onOpenTransaction: (id: string) => void
-  ops: Pick<AccountsOps, 'archive' | 'restore'>
+  ops: Pick<AccountsOps, 'archive' | 'restore' | 'reconcile'>
 }
 
 /** One account: derived balance, opening state, totals by type, recent transactions and actions. */
 export function AccountDetailSheet({ detail, loading = false, accountId, onClose, onEdit, onTransfer, onOpenTransaction, ops }: AccountDetailSheetProps) {
   const toast = useToast()
   const [confirmArchive, setConfirmArchive] = useState(false)
+  const [reconciling, setReconciling] = useState(false)
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
 
@@ -146,6 +148,12 @@ export function AccountDetailSheet({ detail, loading = false, accountId, onClose
               <span className="text-sm text-muted-foreground">{detail.liability ? t('accounts.detail.currentOwed') : t('accounts.detail.current')}</span>
               {detail.liability ? <LiabilityBalance balance={detail.balance} /> : <MoneyDisplay amount={detail.balance} size="xl" />}
               {card && <p className="pt-1 text-xs text-muted-foreground">{t('accounts.detail.cardNote')}</p>}
+              {!account.archivedAt && (
+                <SecondaryButton className="mt-2 self-start" onClick={() => setReconciling(true)} disabled={busy}>
+                  <Scale aria-hidden="true" />
+                  {t('accounts.reconcile.action')}
+                </SecondaryButton>
+              )}
             </div>
 
             <dl className="divide-y divide-border border-y">
@@ -235,6 +243,16 @@ export function AccountDetailSheet({ detail, loading = false, accountId, onClose
             {detail.linkedDebt && <p className="text-warning">{t('accounts.error.linked_to_debt')}</p>}
           </div>
         </Dialog>
+      )}
+
+      {detail && (
+        <ReconcileDialog
+          account={reconciling && account && !account.archivedAt ? account : null}
+          balance={detail.balance}
+          liability={detail.liability}
+          onClose={() => setReconciling(false)}
+          reconcile={ops.reconcile}
+        />
       )}
     </>
   )

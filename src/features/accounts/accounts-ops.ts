@@ -2,10 +2,13 @@
  * The write operations the Accounts UI performs — thin wrappers over the
  * repository that supply now / ids. Injectable for tests.
  */
-import { AccountNotFoundError, AccountValidationError, accountsRepository, type AccountWriteIssue } from '@/db/repositories'
+import { AccountNotFoundError, AccountValidationError, accountsRepository, ExpenseValidationError, transactionsRepository, type AccountWriteIssue } from '@/db/repositories'
 import { StorageError } from '@/db/errors'
 import type { AccountDraft } from '@/domain/accounts'
 import type { ID } from '@/domain/entities'
+import type { Satang } from '@/domain/money'
+import { todayISO } from '@/lib/dates'
+import { newId } from '@/lib/ids'
 import { t, type MessageKey } from '@/lib/i18n'
 
 const now = () => new Date().toISOString()
@@ -15,6 +18,8 @@ export interface AccountsOps {
   update: (id: ID, draft: AccountDraft) => Promise<unknown>
   archive: (id: ID) => Promise<unknown>
   restore: (id: ID) => Promise<unknown>
+  /** Record the difference to the real balance as one adjustment today (liabilities: negative balance). */
+  reconcile: (id: ID, actualSatang: Satang) => Promise<unknown>
 }
 
 export const defaultAccountsOps: AccountsOps = {
@@ -22,6 +27,7 @@ export const defaultAccountsOps: AccountsOps = {
   update: (id, draft) => accountsRepository.update(id, draft, { now: now() }),
   archive: (id) => accountsRepository.archive(id, { now: now() }),
   restore: (id) => accountsRepository.restore(id, { now: now() }),
+  reconcile: (id, actualSatang) => transactionsRepository.reconcileBalance(id, actualSatang, { id: newId(), now: now(), date: todayISO() }),
 }
 
 export type AccountField = 'name' | 'kind' | 'opening' | 'openingDate'
@@ -55,6 +61,7 @@ export function accountFailureToErrors(error: unknown): AccountErrors {
     return errors
   }
   if (error instanceof AccountNotFoundError) return { fields: {}, form: t('accounts.error.not_found') }
+  if (error instanceof ExpenseValidationError) return { fields: {}, form: t('accounts.error.failed') }
   if (error instanceof StorageError) return { fields: {}, form: t(`expense.error.${error.kind}`) }
   return { fields: {}, form: t('accounts.error.failed') }
 }

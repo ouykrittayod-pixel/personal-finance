@@ -1,4 +1,6 @@
-import type { Attachment, AttachmentBlob, Debt, ID, Transaction } from '@/domain/entities'
+import type { Attachment, AttachmentBlob, Debt, ID, ISODate, Transaction } from '@/domain/entities'
+import type { Satang } from '@/domain/money'
+import { accountBalances } from '@/domain/reporting'
 import { isRevolving, validateLoanTimeline } from '@/domain/debts'
 import { buildTransaction, latestExpenseDate, type DraftIssue, type ExpenseDraft, type TransactionDraft } from '@/domain/transactions'
 import type { FinanceDatabase } from '../dexie'
@@ -236,6 +238,47 @@ export function createTransactionsRepository(database: FinanceDatabase) {
             })
           }
           return result.transaction
+        })
+      } catch (error) {
+        return rethrow(error)
+      }
+    },
+
+    /**
+     * Bring an account to the balance it really has (e.g. what the bank app
+     * shows): record the difference as one `adjustment` on `meta.date`. An
+     * adjustment moves the balance only — it is never an expense or income, so
+     * spending, budgets and reports are unchanged. Returns null when the
+     * balance already matches. Idempotent on `meta.id`.
+     */
+    async reconcileBalance(accountId: ID, actualSatang: Satang, meta: { id: ID; now: string; date: ISODate; note?: string }): Promise<Transaction | null> {
+      if (!Number.isSafeInteger(actualSatang)) throw new ExpenseValidationError(['amount_not_integer'])
+      try {
+        return await database.transaction('rw', [database.accounts, database.transactions], async () => {
+          const stored = await database.transactions.get(meta.id)
+          if (stored) return stored
+          const account = await database.accounts.get(accountId)
+          if (!account || account.archivedAt) throw new ExpenseValidationError(['unknown_account'])
+          const [from, to] = await Promise.all([
+            database.transactions.where('accountId').equals(accountId).toArray(),
+            database.transactions.where('toAccountId').equals(accountId).toArray(),
+          ])
+          const current = accountBalances([account], [...from, ...to]).get(accountId) ?? account.openingBalanceSatang
+          const difference = (actualSatang - current) as Satang
+          if (difference === 0) return null
+          const adjustment: Transaction = {
+            id: meta.id,
+            type: 'adjustment',
+            date: meta.date,
+            amountSatang: difference,
+            accountId,
+            description: 'ปรับยอดให้ตรงกับยอดจริง',
+            ...(meta.note?.trim() ? { note: meta.note.trim() } : {}),
+            createdAt: meta.now,
+            updatedAt: meta.now,
+          }
+          await database.transactions.add(adjustment)
+          return adjustment
         })
       } catch (error) {
         return rethrow(error)
