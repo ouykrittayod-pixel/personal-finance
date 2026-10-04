@@ -1,7 +1,6 @@
 /**
- * Google sign-in by full-page redirect, for apps opened from the home screen
- * (iOS "Add to Home Screen" and other standalone web apps), where Google's
- * pop-up cannot report back to the app.
+ * Google sign-in by full-page redirect. Used everywhere: pop-ups are blocked
+ * or cannot report back in Safari and in apps opened from the home screen.
  *
  * Flow: the app navigates to Google's consent page; Google sends the browser
  * back to the app's own address with the token in the URL fragment
@@ -18,13 +17,6 @@ const RESULT_KEY = 'pf-oauth-result'
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
 
 export type RedirectOutcome = { kind: 'token'; accessToken: string; expiresIn: number; scope: string } | { kind: 'error'; error: string }
-
-/** Opened from the home screen (no browser UI): pop-ups cannot talk back to the app there. */
-export function isStandaloneApp(): boolean {
-  if (typeof window === 'undefined') return false
-  const nav = navigator as Navigator & { standalone?: boolean }
-  return nav.standalone === true || (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches)
-}
 
 /** The address Google sends the user back to (must match the registered redirect URI exactly). */
 export const redirectUri = () => `${location.origin}${import.meta.env.BASE_URL}`

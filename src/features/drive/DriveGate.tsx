@@ -1,7 +1,6 @@
 import { Cloud, Loader2, ShieldCheck, WifiOff, Zap } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 import { PrimaryButton } from '@/components/actions/buttons'
-import { preloadGoogleSignIn } from '@/lib/google/auth'
 import { t, type MessageKey } from '@/lib/i18n'
 import { driveSync, useDriveSync } from './instance'
 
@@ -27,7 +26,6 @@ const POINTS: { icon: typeof Cloud; key: MessageKey }[] = [
 /** First screen on a device that has never connected: everything lives in Drive, so connect first. */
 export function ConnectScreen() {
   const state = useDriveSync()
-  useEffect(preloadGoogleSignIn, [])
   return (
     <FullScreen>
       <div className="flex flex-col gap-3">

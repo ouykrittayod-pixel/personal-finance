@@ -68,9 +68,9 @@ export interface DriveState {
 
 /** What the controller needs from Google (real: lib/google/auth; tests: a fake). */
 export interface DriveAuth {
-  /** Valid cached token or null; never opens a pop-up. */
+  /** Valid cached token or null; never leaves the page. */
   currentToken(): string | null
-  /** Opens Google's pop-up, or leaves for Google's page in a home-screen app (call from a tap). */
+  /** Leaves for Google's sign-in page (call from a tap); the app reloads when Google sends the user back. */
   signIn(loginHint?: string): Promise<string>
   user(token: string): Promise<GoogleUser>
   signOut(): Promise<void>
@@ -245,7 +245,7 @@ export function createDriveSync(options: DriveSyncOptions) {
       return () => listeners.delete(listener)
     },
 
-    /** Read this device's link and start syncing (no pop-up). */
+    /** Read this device's link and start syncing (never leaves the page). */
     async start(): Promise<void> {
       if (!options.configured) return
       const link = await readLink()
