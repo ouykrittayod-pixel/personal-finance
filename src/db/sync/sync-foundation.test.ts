@@ -120,7 +120,7 @@ describe('schema v2 on a new database', () => {
     const database = fresh()
     await database.open()
     expect(database.verno).toBe(LATEST_SCHEMA_VERSION)
-    expect(LATEST_SCHEMA_VERSION).toBe(3)
+    expect(LATEST_SCHEMA_VERSION).toBe(4)
     expect(DATA_SCHEMA_VERSION).toBe(1)
     for (const table of SYNC_TABLES) expect(database.tables.map((t) => t.name)).toContain(table)
     await ensureSyncFoundation(database)

@@ -17,12 +17,6 @@ function storageManager(): StorageManager | undefined {
   return typeof navigator !== 'undefined' ? navigator.storage : undefined
 }
 
-export async function getPersistenceStatus(): Promise<PersistenceStatus> {
-  const storage = storageManager()
-  if (!storage?.persisted) return 'unsupported'
-  return (await storage.persisted()) ? 'persisted' : 'not_persisted'
-}
-
 /** Ask the browser to keep our data. Safe to call repeatedly. */
 export async function requestPersistentStorage(): Promise<PersistenceStatus> {
   const storage = storageManager()

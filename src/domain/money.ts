@@ -59,10 +59,6 @@ export function fromBaht(baht: number): Satang {
   return satang(baht * SATANG_PER_BAHT)
 }
 
-export function isSatang(value: unknown): value is Satang {
-  return typeof value === 'number' && Number.isSafeInteger(value)
-}
-
 const DECIMAL_PATTERN = /^([+-])?(\d+)(?:\.(\d{0,2}))?$/
 
 /**
@@ -189,7 +185,6 @@ export function multiplyRatio(
 /** Basis points: 1% = 100 bps, 18.5% = 1850 bps. Rates are stored as integer bps, never floats. */
 export type BasisPoints = number
 
-export const BPS_PER_PERCENT = 100
 export const BPS_PER_WHOLE = 10_000
 
 /** Percentage of an amount, e.g. `percentOf(amount, 700)` = 7% VAT. */
@@ -247,10 +242,6 @@ export function allocate(total: Satang, weights: readonly number[]): Satang[] {
 export function compare(a: Satang, b: Satang): -1 | 0 | 1 {
   return a < b ? -1 : a > b ? 1 : 0
 }
-
-export const isZero = (a: Satang): boolean => a === 0
-export const isPositive = (a: Satang): boolean => a > 0
-export const isNegative = (a: Satang): boolean => a < 0
 
 export function min(first: Satang, ...rest: Satang[]): Satang {
   return rest.reduce((m, v) => (v < m ? v : m), first)

@@ -1,10 +1,10 @@
 # การเงินส่วนตัว — Personal Finance
 
 A local-first, offline-first personal finance web app for a single user.
-Thai UI, THB only (V1), no backend, no accounts, no cloud: **all data stays in this browser's IndexedDB.**
+Thai UI, THB only (V1), no backend, no accounts: **all data stays in this browser's IndexedDB.** Multi-device sync through the user's own Google Drive is planned.
 
 > Status: **foundation + design system + Dashboard + Quick Expense + Transactions + Recurring + Debts + Income + Accounts & Transfers + Budget + Calendar + Analytics + Backup / Restore / Export + First-run setup & categories + Import Center (dev preview only).**
-> Analytics is a placeholder.
+> The "รายจ่ายประจำวัน" page (`#/expenses`) is still a placeholder; entering expenses happens through Quick Expense ("+").
 >
 > Design system: see [docs/design-system.md](docs/design-system.md). Live gallery in dev: `#/design-system`.
 
@@ -40,7 +40,7 @@ npm run dev          # http://localhost:5173
 | UI             | React 19, Tailwind CSS 4, shadcn/ui (Radix, "nova" style), lucide icons |
 | Routing        | React Router 8, **hash router** (`#/expenses`)                         |
 | Storage        | IndexedDB via Dexie 4 + `dexie-react-hooks` (`useLiveQuery`)           |
-| Forms / validation | react-hook-form + Zod (installed, used when forms are built)       |
+| Forms / validation | Controlled React forms + Zod (backup file validation)              |
 | Dates          | date-fns + `Intl` (Gregorian calendar)                                 |
 | Charts         | Recharts (installed, used by Analytics later)                          |
 | PWA            | vite-plugin-pwa (Workbox `generateSW`, auto-update)                    |
@@ -74,8 +74,8 @@ src/
     entities.ts      persisted entity types
     transactions.ts  transaction model rules (account effects, validation)
     recurrence.ts    recurrence rule type (generation comes later)
-    amortization.ts  (placeholder)
-    budget.ts        (placeholder)
+    amortization.ts  loan amortization estimates
+    budget.ts        budget plan vs. actual spending
   styles/tokens.css  design tokens (semantic colours, spacing, type, motion)
   components/
     index.ts       design-system entry point — pages import from '@/components'
@@ -158,7 +158,7 @@ Transaction          (linked both ways: scheduledPaymentId / transactionId)
 `Debt` is its own entity. Its payment history = `debt_payment` transactions with that `debtId` (indexed) + its
 `ScheduledPayment`s (`sourceType: 'debt'`). Two balance models — see [Debts & repayment](#debts--repayment).
 
-### IndexedDB schema (version 3)
+### IndexedDB schema (version 4)
 
 | Table                  | Indexes                                                                                           |
 | ---------------------- | ------------------------------------------------------------------------------------------------- |
@@ -176,11 +176,10 @@ Transaction          (linked both ways: scheduledPaymentId / transactionId)
 | `syncTombstones`       | **[tableName+recordId]**, tableName (device-local, v2)                                            |
 | `syncState`            | `key` (device-local, v2)                                                                          |
 | `syncSettings`         | `key` (device id, sync off; device-local, v2)                                                     |
-| `keyring`              | `kid` (passphrase-wrapped encryption key; device-local, never backed up, v3)                      |
 
 The database starts **empty** — no demo or seed data.
 
-Two version numbers: the **Dexie version** (`LATEST_SCHEMA_VERSION`, now 2) describes local storage, including device-only tables; the **data schema version** (`DATA_SCHEMA_VERSION`, still 1) describes business records and is what backups carry. v2 added only device-local tables, so backups are unchanged (format v1, schema 1).
+Two version numbers: the **Dexie version** (`LATEST_SCHEMA_VERSION`, now 4) describes local storage, including device-only tables; the **data schema version** (`DATA_SCHEMA_VERSION`, still 1) describes business records and is what backups carry. v2 added only device-local tables, v3 added a `keyring` table for a since-removed encrypted cloud experiment and v4 drops it again, so backups are unchanged (format v1, schema 1).
 
 ### Changing the schema
 
@@ -203,20 +202,9 @@ There is **no network sync**: no account, no login, no cloud, no requests. The l
 - **Outbox** — every write to a synced table (accounts, categories, transactions, recurring rules, scheduled payments, debts, budgets, attachment metadata) records `{ table, record id, create/update/delete, opId, seq }` in the **same IndexedDB transaction** as the write (Dexie DBCore middleware, `src/db/sync/tracking.ts`), so it can never miss a write or survive a rolled-back one. Entries hold **no record content** (the record is read when sent). Several changes to one record collapse into one entry (`collapseOutbox` in `src/domain/sync.ts`). Not tracked: `meta`, attachment blobs, schema upgrades, restore.
 - **Tombstones** — deletes leave `{ table, record id, deletedAt, opId }` so another device can learn about them later; a record created and deleted before it was ever sent leaves nothing.
 - **Revisions** — never from device clocks. Base revisions stay 0 until a server exists; the server will assign them. `seq` is a local counter, not a time.
-- **Attachments** — metadata syncs later; blobs stay on the device (content-addressed, encrypted upload is a later phase).
+- **Attachments** — metadata syncs later; blobs stay on the device for now.
 - **Restore** — not recorded as changes; clears outbox and tombstones and bumps `syncState.epoch` (a later sync must reconcile from scratch). The device id is kept.
 - **Dev only** — `#/dev/integrity` shows device id, outbox counts and a consistency check (counts and ids only), and can reset sync metadata (business data untouched).
-
-## Encrypted cloud foundation (Phase 19 — optional, synthetic data only)
-
-Sign-in is optional; without it (or without cloud configuration) the app works exactly as before. **No finance data is synced or uploaded.** Only `synthetic_*` test records can be stored — enforced by the client and by a database constraint.
-
-- **Sign-in:** Supabase email one-time code / magic link (PKCE). Settings → "บัญชีคลาวด์และการเข้ารหัส". The session lives in `localStorage` (`pf-cloud-auth`), never in IndexedDB or backups.
-- **Encryption:** AES-256-GCM via Web Crypto. A random data key is wrapped with a separate **encryption passphrase** (PBKDF2-SHA-256, 600k iterations) and stored in the local `keyring` table. The unwrapped key is a non-extractable in-memory `CryptoKey`; sign-out locks it. Envelope: `{ v, alg, kid, iv, ct }` (base64url), bound to user/type/id by AAD.
-- **Server:** `supabase/migrations/` creates `sync_records` (ciphertext + minimal routing metadata, RLS owner-only) and a private `encrypted-attachments` bucket. See `supabase/README.md`.
-- **Config:** `.env.local` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` only (see `.env.example`). Service-role / secret keys are refused at build and run time.
-- **Dev:** `#/dev/cloud` runs the synthetic round trip (43 records: encrypt → upload → download → decrypt → compare → delete).
-- **Security model:** `docs/security/phase-19-security.md`.
 
 ### Natural identities
 

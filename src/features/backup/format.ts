@@ -90,10 +90,6 @@ export class BackupError extends Error {
   }
 }
 
-export function emptyCounts(): BackupCounts {
-  return Object.fromEntries(BACKUP_TABLES.map((table) => [table, 0])) as BackupCounts
-}
-
 /** personal-finance-backup-2026-09-26.json */
 export function backupFileName(today: string): string {
   return `personal-finance-backup-${today}.json`

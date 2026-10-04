@@ -21,9 +21,6 @@ import type { ID, ISODateTime } from './entities'
 export const SYNCED_TABLES = ['accounts', 'categories', 'transactions', 'recurringObligations', 'scheduledPayments', 'debts', 'budgets', 'attachments'] as const
 export type SyncedTable = (typeof SYNCED_TABLES)[number]
 
-/** Device-local tables: never synced, never in backups. */
-export const LOCAL_ONLY_TABLES = ['attachmentBlobs', 'meta', 'syncOutbox', 'syncTombstones', 'syncState', 'syncSettings', 'keyring'] as const
-
 export const SYNC_TABLES = ['syncOutbox', 'syncTombstones', 'syncState', 'syncSettings'] as const
 
 export const SYNC_PROTOCOL_VERSION = 1
@@ -157,6 +154,3 @@ export function collapseOutbox(existing: OutboxEntry | undefined, op: OutboxOp, 
       return { entry: fresh('delete', existing), tombstone: 'write' }
   }
 }
-
-/** Outbox entries in send order. */
-export const outboxOrder = (entries: readonly OutboxEntry[]) => [...entries].sort((a, b) => a.seq - b.seq)

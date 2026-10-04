@@ -48,10 +48,6 @@ export function todayISO(now: Date = new Date()): ISODate {
   return toISODate(now)
 }
 
-export function nowTimestamp(): string {
-  return new Date().toISOString()
-}
-
 const dateFormatters = new Map<string, Intl.DateTimeFormat>()
 
 export type DateStyle = 'short' | 'medium' | 'long' | 'full'

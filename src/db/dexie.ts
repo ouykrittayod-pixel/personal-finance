@@ -12,7 +12,6 @@ import type {
   Transaction,
 } from '@/domain/entities'
 import type { OutboxEntry, SyncSettings, SyncState, Tombstone } from '@/domain/sync'
-import type { WrappedKey } from '@/lib/crypto/keyring'
 import { DB_NAME, SCHEMA_VERSIONS } from './schema'
 import { syncTrackingMiddleware } from './sync/tracking'
 
@@ -32,8 +31,6 @@ export class FinanceDatabase extends Dexie {
   declare syncTombstones: Table<Tombstone, [string, string]>
   declare syncState: EntityTable<SyncState, 'key'>
   declare syncSettings: EntityTable<SyncSettings, 'key'>
-  /** Passphrase-wrapped data key (Phase 19). The unwrapped key is never stored. */
-  declare keyring: EntityTable<WrappedKey, 'kid'>
 
   constructor(name: string = DB_NAME) {
     super(name)
