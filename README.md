@@ -256,6 +256,11 @@ Drive holds the data set; a device only caches it. Nothing passes through a serv
   Without one — and always in tests — the app runs local-only, as before. Google Cloud: enable Drive + Sheets APIs,
   OAuth consent screen (testing, own account as test user), Web client with authorized JavaScript origins
   `https://ouykrittayod-pixel.github.io` and `http://localhost:5173`.
+- **Read-only Google Sheet** (`src/features/drive/sheet-tabs.ts`, `google-sheet.ts`): "การเงินส่วนตัว — ดูข้อมูล",
+  created once with `drive.file` and found again from any device by a private app property. Tabs: about, monthly
+  summary, transactions, accounts (with balances), debts (outstanding), budgets (spent / remaining). Rewritten in
+  full after every sync that changed data, values written RAW (text never becomes a formula). Edits in the sheet are
+  overwritten; a failed update never fails the sync and is retried on the next pass. The Drive card links to it.
 - **CSP:** production builds carry a Content-Security-Policy meta tag allowing only this site's files plus Google
   sign-in, Drive and Sheets endpoints (`vite.config.ts`).
 
