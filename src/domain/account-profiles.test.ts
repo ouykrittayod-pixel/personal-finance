@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { baht, makeAccount, makeDebt, makeObligation, makeTx } from '@/test/factories'
 import { creditCardProfile, investmentProfile, nextDayOfMonth } from './account-profiles'
+import { ZERO } from './money'
 
 const TODAY = '2026-10-04'
 
@@ -14,7 +15,7 @@ describe('nextDayOfMonth', () => {
 })
 
 describe('credit card profile', () => {
-  const card = makeAccount({ id: 'card', kind: 'credit_card', openingBalanceSatang: -baht(7_500), openingDate: '2026-09-01', creditLimitSatang: baht(21_000), statementDay: 25, paymentDueDay: 10 })
+  const card = makeAccount({ id: 'card', kind: 'credit_card', openingBalanceSatang: baht(-7_500), openingDate: '2026-09-01', creditLimitSatang: baht(21_000), statementDay: 25, paymentDueDay: 10 })
   const txs = [
     makeTx({ id: 'old', type: 'expense', amountSatang: baht(1_000), accountId: 'card', date: '2026-09-20' }),
     makeTx({ id: 'new1', type: 'expense', amountSatang: baht(500), accountId: 'card', date: '2026-09-27' }),
@@ -43,7 +44,7 @@ describe('credit card profile', () => {
   })
 
   it('a card without limit or days still shows what is used and this month', () => {
-    const plain = makeAccount({ id: 'card', kind: 'credit_card', openingBalanceSatang: 0, openingDate: '2026-09-01' })
+    const plain = makeAccount({ id: 'card', kind: 'credit_card', openingBalanceSatang: ZERO, openingDate: '2026-09-01' })
     const profile = creditCardProfile(plain, txs, { debts: [], obligations: [] }, TODAY)
     expect(profile.limit).toBeUndefined()
     expect(profile.cycle).toBeUndefined()
@@ -82,8 +83,8 @@ describe('investment profile', () => {
   })
 
   it('a loss is negative', () => {
-    const profile = investmentProfile(dca, [...txs, makeTx({ id: 'drop', type: 'adjustment', amountSatang: -baht(600), accountId: 'dca', date: '2026-10-03' })], [], TODAY)
-    expect(profile.gain).toBe(-baht(400))
+    const profile = investmentProfile(dca, [...txs, makeTx({ id: 'drop', type: 'adjustment', amountSatang: baht(-600), accountId: 'dca', date: '2026-10-03' })], [], TODAY)
+    expect(profile.gain).toBe(baht(-400))
     expect(profile.gainBps).toBe(-1818)
   })
 })

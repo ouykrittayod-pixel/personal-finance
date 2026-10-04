@@ -210,7 +210,7 @@ describe('Settings: export', () => {
     expect(csvName).toBe(`personal-finance-transactions-${todayISO()}.csv`)
     const text = await blobText(csv)
     expect(text).toContain('วันที่,ประเภท,จำนวนเงิน')
-    expect(text).toContain('2026-09-03,รายจ่าย,2500.00,อาหาร,เงินสด,ข้าวกลางวัน')
+    expect(text).toContain('03/09/2026,รายจ่าย,2500.00,อาหาร,เงินสด,ข้าวกลางวัน')
     expect(await ids()).toEqual(before)
   })
 
