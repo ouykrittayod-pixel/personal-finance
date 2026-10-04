@@ -1,7 +1,8 @@
 # การเงินส่วนตัว — Personal Finance
 
-A local-first, offline-first personal finance web app for a single user.
-Thai UI, THB only (V1), no backend, no accounts: **all data stays in this browser's IndexedDB.** Multi-device sync through the user's own Google Drive is planned.
+A personal finance web app for a single user, used from a phone and a computer.
+Thai UI, THB only (V1), no backend of its own: **the data lives in the user's own Google Drive**; each browser keeps
+only a disposable cache in IndexedDB so the app opens instantly and works offline. See [Google Drive storage](#google-drive-storage).
 
 > Status: **foundation + design system + Dashboard + Quick Expense + Transactions + Recurring + Debts + Income + Accounts & Transfers + Budget + Calendar + Analytics + Backup / Restore / Export + First-run setup & categories + Import Center (dev preview only).**
 > The "รายจ่ายประจำวัน" page (`#/expenses`) is still a placeholder; entering expenses happens through Quick Expense ("+").
@@ -194,16 +195,16 @@ Conventions: calendar dates are local `"YYYY-MM-DD"` strings (no time-zone drift
 
 ---
 
-## Local sync foundation (Phase 18 — local only)
+## Local change tracking (outbox and tombstones)
 
-There is **no network sync**: no account, no login, no cloud, no requests. The local database is only prepared for an opt-in multi-device sync in a later phase. Users see no difference.
+The bookkeeping the Drive sync builds on. It records what changed on this device; the sync engine reads it.
 
 - **Device id** — `syncSettings.device`: a random `crypto.randomUUID()` made once per database, with `syncEnabled: false`. No hardware or browser fingerprint. Not in backups.
 - **Outbox** — every write to a synced table (accounts, categories, transactions, recurring rules, scheduled payments, debts, budgets, attachment metadata) records `{ table, record id, create/update/delete, opId, seq }` in the **same IndexedDB transaction** as the write (Dexie DBCore middleware, `src/db/sync/tracking.ts`), so it can never miss a write or survive a rolled-back one. Entries hold **no record content** (the record is read when sent). Several changes to one record collapse into one entry (`collapseOutbox` in `src/domain/sync.ts`). Not tracked: `meta`, attachment blobs, schema upgrades, restore.
 - **Tombstones** — deletes leave `{ table, record id, deletedAt, opId }` so another device can learn about them later; a record created and deleted before it was ever sent leaves nothing.
-- **Revisions** — never from device clocks. Base revisions stay 0 until a server exists; the server will assign them. `seq` is a local counter, not a time.
+- **Order** — `seq` is a local counter, not a time; a sync pass treats entries up to the highest `seq` it read as sent.
 - **Attachments** — metadata syncs later; blobs stay on the device for now.
-- **Restore** — not recorded as changes; clears outbox and tombstones and bumps `syncState.epoch` (a later sync must reconcile from scratch). The device id is kept.
+- **Restore** — not recorded as changes; clears outbox and tombstones and bumps `syncState.epoch`. With Drive connected, the next sync replaces Drive's data with the restored set. The device id is kept.
 - **Dev only** — `#/dev/integrity` shows device id, outbox counts and a consistency check (counts and ids only), and can reset sync metadata (business data untouched).
 
 ### Natural identities
@@ -227,12 +228,43 @@ The v2 upgrade rewrote existing occurrence ids to their deterministic form and m
 
 ---
 
+## Google Drive storage
+
+Drive holds the data set; a device only caches it. Nothing passes through a server of this app.
+
+- **Where:** the app's hidden folder in the user's Drive (`appDataFolder`, scope `drive.appdata`): one JSON data file
+  (`personal-finance-data.json`, `src/features/drive/remote-format.ts`, same strict record schemas as backups, plus
+  tombstones) and one file per receipt (`attachment-<id>`). The app cannot see any other Drive file. `drive.file` is
+  requested for the coming read-only Google Sheet; `openid email` identifies the account.
+- **Sign-in:** Google Identity Services token model (`src/lib/google/auth.ts`). An access token lasts ~1 hour and is
+  cached in `localStorage`; a new one needs Google's pop-up, which browsers allow only after a tap — so when it expires
+  the header chip says "แตะเพื่อเชื่อมต่อ" and sync waits; the app keeps working from the cache. No refresh token,
+  no client secret.
+- **Sync** (`src/features/drive/sync-engine.ts`, rules in `src/domain/drive-merge.ts`): read cache → read Drive file →
+  merge → upload if Drive is behind (after checking the file version is unchanged; retried on conflict) → write the
+  merge back to the cache in one untracked transaction (records edited during the pass are kept for the next one) →
+  move receipt files both ways. Merge: union by table + id; later `updatedAt` wins (deterministic tie-break);
+  tombstones delete unless the record changed after the delete; one budget per month + category and one occurrence
+  per source + due date. Device clocks decide "later".
+- **When:** on start, ~2.5 s after a local change, when the app returns to the foreground or comes online, and every
+  3 minutes while visible (`src/features/drive/drive-sync.ts`).
+- **Devices:** a device that has never connected shows the connect screen first and waits for the first download.
+  Connecting another Google account empties the cache first (refused while unsynced changes exist). "ออกจากระบบ"
+  revokes access and deletes the cache; the data stays in Drive. Restoring a backup replaces the data in Drive (and so
+  on every device).
+- **Configuration:** the OAuth Client ID is public; it goes in `src/lib/google/config.ts` (or `VITE_GOOGLE_CLIENT_ID`).
+  Without one — and always in tests — the app runs local-only, as before. Google Cloud: enable Drive + Sheets APIs,
+  OAuth consent screen (testing, own account as test user), Web client with authorized JavaScript origins
+  `https://ouykrittayod-pixel.github.io` and `http://localhost:5173`.
+- **CSP:** production builds carry a Content-Security-Policy meta tag allowing only this site's files plus Google
+  sign-in, Drive and Sheets endpoints (`vite.config.ts`).
+
 ## Storage & offline
 
 - `StorageProvider` opens IndexedDB before rendering and shows a clear error if IndexedDB is unavailable.
-- It calls `navigator.storage.persist()` on start; Settings shows the status, usage/quota, and a retry button.
+- The IndexedDB cache is disposable when Drive is connected; changes made offline wait in the outbox and go up on the
+  next sync. `navigator.storage.persist()` is still requested so unsynced changes are not evicted.
 - The service worker precaches the whole app, so after the first visit it loads with no network.
-- **Browser data can still be lost** (clearing site data, uninstalling the browser, some private modes). Backup / restore (Settings) is the real safety net.
 
 ---
 

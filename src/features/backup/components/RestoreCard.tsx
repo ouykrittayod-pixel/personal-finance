@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { db } from '@/db/dexie'
 import { formatBytes, formatDateTime } from '@/lib/formatting'
 import { t, type MessageKey } from '@/lib/i18n'
+import { driveSync } from '@/features/drive/instance'
+import { driveConfigured } from '@/lib/google/config'
 import { countRecords, replaceDatabase } from '../create-backup'
 import { BackupError, type BackupCounts, type BackupErrorKind } from '../format'
 import { readBackup, type PreparedRestore } from '../read-backup'
@@ -77,6 +79,8 @@ export function RestoreCard() {
       const expected = step.restore.counts
       const mismatch = (Object.keys(expected) as (keyof BackupCounts)[]).filter((table) => stored[table] !== expected[table])
       if (mismatch.length) throw new BackupError('restore_failed', mismatch)
+      // Drive holds the shared data set: the restored data replaces it (and so every device's copy).
+      void driveSync.replaceRemoteWithLocal()
       setStep({ kind: 'done', verifiedCount: Object.values(stored).reduce((total, n) => total + n, 0) - stored.attachmentBlobs })
     } catch (error) {
       logRestoreError(error)
@@ -226,6 +230,7 @@ export function RestoreCard() {
                 <li>{t('restore.confirm.delete')}</li>
                 <li>{t('restore.confirm.import')}</li>
                 <li>{t('restore.confirm.attachments')}</li>
+                {driveConfigured && <li>{t('restore.confirm.drive')}</li>}
               </ul>
               <p className="mt-2 text-muted-foreground">{t('restore.confirm.irreversible')}</p>
             </div>

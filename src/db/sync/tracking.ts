@@ -157,25 +157,31 @@ export function syncTrackingMiddleware(options: TrackingOptions = {}): Middlewar
           async mutate(req) {
             if (isUpgrade(req.trans) || suppressed.has(req.trans)) return table.mutate(req)
             const z = captureZone()
-            const keys = await keysBefore(req, z)
-            const present = keys.length ? await z(() => table.getMany({ trans: req.trans, keys })) : []
-            const res = await z(() => table.mutate(req))
-            const failed = new Set(Object.keys(res.failures ?? {}).map(Number))
-            const changes: [Key, OutboxOp][] = []
-            if (req.type === 'add') {
-              ;(res.results ?? []).forEach((key, i) => {
-                if (!failed.has(i) && key !== undefined) changes.push([key as Key, 'create'])
-              })
-            } else if (req.type === 'put') {
-              keys.forEach((key, i) => {
-                if (!failed.has(i)) changes.push([key, present[i] === undefined ? 'create' : 'update'])
-              })
-            } else {
-              keys.forEach((key, i) => {
-                if (present[i] !== undefined) changes.push([key, 'delete'])
-              })
-            }
-            await queued(req.trans, () => track(req.trans, name, changes, z))
+            // The whole read-before / write / track sequence runs one write at a time per transaction:
+            // a write that starts while another is still in flight (e.g. an un-awaited put followed by a
+            // delete of the same record) must see the earlier write, or its outbox entry would be wrong.
+            let res!: DBCoreMutateResponse
+            await queued(req.trans, async () => {
+              const keys = await keysBefore(req, z)
+              const present = keys.length ? await z(() => table.getMany({ trans: req.trans, keys })) : []
+              res = await z(() => table.mutate(req))
+              const failed = new Set(Object.keys(res.failures ?? {}).map(Number))
+              const changes: [Key, OutboxOp][] = []
+              if (req.type === 'add') {
+                ;(res.results ?? []).forEach((key, i) => {
+                  if (!failed.has(i) && key !== undefined) changes.push([key as Key, 'create'])
+                })
+              } else if (req.type === 'put') {
+                keys.forEach((key, i) => {
+                  if (!failed.has(i)) changes.push([key, present[i] === undefined ? 'create' : 'update'])
+                })
+              } else {
+                keys.forEach((key, i) => {
+                  if (present[i] !== undefined) changes.push([key, 'delete'])
+                })
+              }
+              await track(req.trans, name, changes, z)
+            })
             return res
           },
         }

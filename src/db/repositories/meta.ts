@@ -6,6 +6,8 @@ export const META_KEYS = {
   installedAt: 'installedAt',
   /** The user closed the first-run setup card (it can be shown again from Settings). */
   setupDismissedAt: 'setupDismissedAt',
+  /** This device's link to the user's Google Drive (account, last synced version). Device-local. */
+  drive: 'drive',
 } as const
 
 export type MetaKey = (typeof META_KEYS)[keyof typeof META_KEYS]
