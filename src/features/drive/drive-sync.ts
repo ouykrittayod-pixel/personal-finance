@@ -165,7 +165,7 @@ export function createDriveSync(options: DriveSyncOptions) {
       const stamp = now()
       const { replaceRemote: _done, ...rest } = link
       const changed = result.uploaded || result.downloaded > 0
-      let sheet = { sheetUrl: link.sheetUrl, sheetStale: link.sheetStale }
+      let sheet: { sheetUrl?: string; sheetStale?: boolean } = { sheetUrl: link.sheetUrl, sheetStale: link.sheetStale }
       if (options.createMirror && (changed || link.sheetStale || !link.sheetUrl)) sheet = await updateSheet(stamp)
       await writeLink({ ...rest, ...sheet, remoteVersion: result.version, lastSyncAt: stamp, retryAttachments: result.attachmentsFailed > 0 })
       // New rules or payments from another device: bring scheduled occurrences up to date here too.

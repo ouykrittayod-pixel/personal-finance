@@ -14,7 +14,7 @@ function fakeGoogleApis() {
   const calls: Call[] = []
   const sheets = new Map<string, { titles: string[]; values: Record<string, unknown[][]>; marked: boolean }>()
   let next = 1
-  const state = { calls, sheets, deleteNext: false, unauthorized: false }
+  const state = { calls, sheets, deleteNext: false, unauthorized: false, inputOptions: [] as string[] }
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
   const fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
@@ -53,7 +53,7 @@ function fakeGoogleApis() {
         return json({})
       }
       if (rest === '/values:batchUpdate') {
-        expect(body.valueInputOption).toBe('RAW')
+        state.inputOptions.push(body.valueInputOption)
         for (const d of body.data) sheet.values[d.range.replace('!A1', '')] = d.values
         return json({})
       }
@@ -76,6 +76,7 @@ describe('read-only Google Sheet', () => {
     expect(url).toBe(sheetUrl('sheet-1'))
     const sheet = api.sheets.get('sheet-1')!
     expect(sheet.marked).toBe(true)
+    expect(api.state.inputOptions).toEqual(['RAW'])
     expect(sheet.values["'รายการ'"]).toEqual([
       ['วันที่', 'รายละเอียด'],
       ['2026-10-01', '=1+1'],
