@@ -5,10 +5,11 @@
  * the billing cycle (statement day → due day) and the spending in it.
  *
  * Investment: current value (the balance, kept up to date with
- * "อัปเดตมูลค่า" adjustments), the money put in (opening + transfers in −
- * transfers out), gain or loss against it, returns received (income), fees
- * (expenses), how much was invested this month / year and the planned
- * transfers (DCA) into it.
+ * "อัปเดตมูลค่า" adjustments), the money put in (opening + transfers in +
+ * income paid into it − transfers out; income here is contributions such as a
+ * provident fund's employee/employer money, or dividends kept in the account),
+ * gain or loss against it (value updates − fees), how much was invested this
+ * month / year and the planned transfers (DCA) into it.
  */
 import { accountActivity, calculateAccountBalance } from './accounts'
 import type { Account, Debt, ID, ISODate, RecurringObligation, Transaction } from './entities'
@@ -97,13 +98,13 @@ export function creditCardProfile(
 
 export interface InvestmentProfile {
   value: Satang
-  /** Opening value + transfers in − transfers out: the money put in. */
+  /** Opening value + transfers in + income paid in − transfers out: the money put in. */
   invested: Satang
   /** value − invested. */
   gain: Satang
   /** gain / invested in basis points (absent when nothing was put in). */
   gainBps?: number
-  /** Dividends / interest recorded as income into the account. */
+  /** Contributions / dividends recorded as income into the account (part of `invested`). */
   returns: Satang
   /** Fees recorded as expenses from the account. */
   fees: Satang
@@ -120,9 +121,9 @@ export interface InvestmentProfile {
 export function investmentProfile(account: Account, transactions: readonly Transaction[], obligations: readonly RecurringObligation[], today: ISODate): InvestmentProfile {
   const value = calculateAccountBalance(account, transactions) ?? ZERO
   const activity = accountActivity(account, transactions)
-  const invested = subtract(add(account.openingBalanceSatang, activity.transfersIn), activity.transfersOut)
+  const invested = subtract(add(add(account.openingBalanceSatang, activity.transfersIn), activity.incomeIn), activity.transfersOut)
   const gain = subtract(value, invested)
-  const transfersIn = transactions.filter((tx) => tx.type === 'transfer' && tx.toAccountId === account.id)
+  const transfersIn = transactions.filter((tx) => (tx.type === 'transfer' && tx.toAccountId === account.id) || (tx.type === 'income' && tx.accountId === account.id))
   const sumSince = (from: ISODate) => transfersIn.filter((tx) => tx.date >= from && tx.date <= today).reduce((sum, tx) => add(sum, tx.amountSatang), ZERO)
   const lastAdjustment = transactions
     .filter((tx) => tx.type === 'adjustment' && tx.accountId === account.id)
