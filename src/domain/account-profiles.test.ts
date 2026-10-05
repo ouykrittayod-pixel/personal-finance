@@ -66,25 +66,25 @@ describe('investment profile', () => {
 
   it('value, money put in, gain/loss, contributions and plans', () => {
     const profile = investmentProfile(dca, txs, [plan], TODAY)
-    // Put in: 1,000 + 1,400 − 200 = 2,200; value: 2,200 + 50 + 150 = 2,400
+    // Put in: 1,000 + 1,400 + 50 (paid in) − 200 = 2,250; value: 2,250 + 150 (value update) = 2,400
     expect(profile).toMatchObject({
       value: baht(2_400),
-      invested: baht(2_200),
-      gain: baht(200),
-      gainBps: 909,
+      invested: baht(2_250),
+      gain: baht(150),
+      gainBps: 667,
       returns: baht(50),
       fees: 0,
       valueChanges: baht(150),
       lastValuedOn: '2026-10-02',
       investedThisMonth: baht(700),
-      investedThisYear: baht(1_400),
+      investedThisYear: baht(1_450),
       plans: [{ id: 'p', name: 'DCA', amount: baht(700), nextDate: '2026-11-01', paused: false }],
     })
   })
 
   it('a loss is negative', () => {
     const profile = investmentProfile(dca, [...txs, makeTx({ id: 'drop', type: 'adjustment', amountSatang: baht(-600), accountId: 'dca', date: '2026-10-03' })], [], TODAY)
-    expect(profile.gain).toBe(baht(-400))
-    expect(profile.gainBps).toBe(-1818)
+    expect(profile.gain).toBe(baht(-450))
+    expect(profile.gainBps).toBe(-2000)
   })
 })
