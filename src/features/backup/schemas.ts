@@ -118,7 +118,7 @@ export const scheduledPaymentSchema = z.strictObject({
   updatedAt: timestamp,
 })
 
-const principalAdjustmentSchema = z.strictObject({ id, date, amountSatang: money, note: text.optional(), createdAt: timestamp })
+const principalAdjustmentSchema = z.strictObject({ id, date, amountSatang: money, interestBearing: z.boolean().optional(), note: text.optional(), createdAt: timestamp })
 const cardStatementSchema = z.strictObject({
   id,
   statementDate: date,

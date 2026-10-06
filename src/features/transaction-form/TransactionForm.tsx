@@ -1,3 +1,4 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, CreditCard } from 'lucide-react'
 import { createElement, useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { AttachmentPreview } from '@/components/data/AttachmentPreview'
@@ -12,7 +13,10 @@ import { Label } from '@/components/ui/label'
 import type { Account, Attachment, Category, Debt, ID, ISODate, Transaction } from '@/domain/entities'
 import { formatMoney, sum, tryParseBaht, type Satang } from '@/domain/money'
 import type { FrequentExpense } from '@/domain/suggestions'
+import { dailyInterestSplit, hasDailyInterest } from '@/domain/loan-interest'
+import { formatBpsAsPercent } from '@/domain/debts'
 import { accountClassOf, type EditableType, type TransactionDraft } from '@/domain/transactions'
+import { transactionsRepository } from '@/db/repositories'
 import { AttachmentPicker, type PendingAttachment } from '@/features/attachments'
 import { addDaysISO } from '@/lib/dates'
 import { formatDate } from '@/lib/formatting'
@@ -151,6 +155,8 @@ export function TransactionForm({
   const [feeText, setFeeText] = useState(moneyText(initial?.feeSatang))
   // A stored loan payment without principal was saved as "not split yet".
   const [unallocated, setUnallocated] = useState(stored?.type === 'debt_payment' && stored.principalSatang === undefined)
+  // New loan payments split themselves (daily interest) until the user types a split of their own.
+  const [autoSplit, setAutoSplit] = useState(!editing)
   const [date, setDate] = useState<ISODate>(initial?.date ?? today)
   const [note, setNote] = useState(initial?.note ?? '')
   const [newFiles, setNewFiles] = useState<PendingAttachment[]>([])
@@ -176,6 +182,18 @@ export function TransactionForm({
   const debt = type === 'debt_payment' ? data.debts?.find((d) => d.id === initial?.debtId) : undefined
   // Loans need an explicit principal / interest / fee split; card payments never have one.
   const isLoanPayment = debt !== undefined && debt.kind !== 'credit_card'
+  const computable = debt !== undefined && hasDailyInterest(debt)
+  const debtPayments = useLiveQuery(() => (computable && debt ? transactionsRepository.listForDebt(debt.id) : undefined), [computable, debt?.id])
+  const enteredAmount = tryParseBaht(amountText.trim())
+  const suggested =
+    computable && debt && debtPayments && enteredAmount !== null
+      ? dailyInterestSplit(debt, debtPayments, { date, amountSatang: enteredAmount, excludeId: stored?.id })
+      : null
+  const autoActive = autoSplit && suggested !== null && !unallocated
+  // What the three split fields show: the computed split while it is automatic, otherwise what was typed.
+  const shownPrincipal = autoActive ? grouped(suggested.principal) : principalText
+  const shownInterest = autoActive ? grouped(suggested.interest) : interestText
+  const shownFee = autoActive ? '0' : feeText
   const account = accountId ? accountsById.get(accountId) : undefined
   const toAccount = toAccountId ? accountsById.get(toAccountId) : undefined
   const frequent = !editing && type === 'expense' ? (data.frequent ?? []) : []
@@ -206,7 +224,7 @@ export function TransactionForm({
       setErrors({ fields: { amount: t('expense.error.amount_invalid') } })
       return
     }
-    const split = [principalText, interestText, feeText].map(parseOptional)
+    const split = [shownPrincipal, shownInterest, shownFee].map(parseOptional)
     if (isLoanPayment && !unallocated && split.some((value) => value === null)) {
       setErrors({ fields: { breakdown: t('txForm.error.breakdown_invalid') } })
       return
@@ -334,9 +352,9 @@ export function TransactionForm({
               <div className="grid gap-stack sm:grid-cols-3">
                 {(
                   [
-                    ['txForm.principal', principalText, setPrincipalText],
-                    ['txForm.interest', interestText, setInterestText],
-                    ['txForm.fee', feeText, setFeeText],
+                    ['txForm.principal', shownPrincipal, setPrincipalText],
+                    ['txForm.interest', shownInterest, setInterestText],
+                    ['txForm.fee', shownFee, setFeeText],
                   ] as const
                 ).map(([label, value, setValue]) => (
                   <AmountInput
@@ -347,6 +365,13 @@ export function TransactionForm({
                     required
                     aria-invalid={errors.fields.breakdown ? true : undefined}
                     onValueChange={(text) => {
+                      if (autoActive) {
+                        // Typing over the computed split: keep the other two as they were shown.
+                        setPrincipalText(shownPrincipal)
+                        setInterestText(shownInterest)
+                        setFeeText(shownFee)
+                        setAutoSplit(false)
+                      }
                       setValue(text)
                       clearFieldError('breakdown')
                     }}
@@ -354,7 +379,36 @@ export function TransactionForm({
                   />
                 ))}
               </div>
-              <AllocationSum amountText={amountText} parts={[principalText, interestText, feeText]} />
+              <AllocationSum amountText={amountText} parts={[shownPrincipal, shownInterest, shownFee]} />
+              {suggested && debt && (
+                <div className="flex flex-col gap-1 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                  <p className="tabular-nums">
+                    {t('txForm.dailyInterest', {
+                      base: formatTHB(suggested.base),
+                      rate: formatBpsAsPercent(debt.annualInterestRateBps!),
+                      days: suggested.days,
+                      year: suggested.daysInYear,
+                      from: formatDate(suggested.from, 'short'),
+                      interest: formatTHB(suggested.interest),
+                    })}
+                  </p>
+                  {autoActive ? (
+                    <p>{t('txForm.dailyInterestAuto')}</p>
+                  ) : (
+                    <button
+                      type="button"
+                      className="min-h-touch self-start font-medium text-primary underline-offset-2 hover:underline md:min-h-8"
+                      disabled={saving}
+                      onClick={() => {
+                        setAutoSplit(true)
+                        clearFieldError('breakdown')
+                      }}
+                    >
+                      {t('txForm.dailyInterestApply')}
+                    </button>
+                  )}
+                </div>
+              )}
             </>
           )}
           <p id={`${formId}-allocation-hint`} className="text-xs text-muted-foreground">

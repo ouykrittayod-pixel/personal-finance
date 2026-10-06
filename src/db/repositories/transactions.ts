@@ -172,6 +172,11 @@ export function createTransactionsRepository(database: FinanceDatabase) {
       return database.transactions.get(id)
     },
 
+    /** Payments of one debt, via the debtId index. */
+    listForDebt(debtId: ID): Promise<Transaction[]> {
+      return database.transactions.where('debtId').equals(debtId).toArray()
+    },
+
     /** Transactions touching one account (as source or destination), via the indexes. */
     async listForAccount(accountId: ID): Promise<Transaction[]> {
       const [from, to] = await Promise.all([

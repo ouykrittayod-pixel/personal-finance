@@ -23,7 +23,7 @@ export interface DebtsOps {
   /** An unscheduled (extra) repayment. Idempotent on `transactionId`. */
   pay: (draft: TransactionDraft, attachments: readonly NewAttachment[], transactionId: ID) => Promise<unknown>
   skip: (paymentId: ID) => Promise<unknown>
-  addAdjustment: (id: ID, adjustment: Pick<PrincipalAdjustment, 'date' | 'amountSatang' | 'note'>, adjustmentId: ID) => Promise<unknown>
+  addAdjustment: (id: ID, adjustment: Pick<PrincipalAdjustment, 'date' | 'amountSatang' | 'note' | 'interestBearing'>, adjustmentId: ID) => Promise<unknown>
   addStatement: (id: ID, statement: Pick<CardStatement, 'statementDate' | 'balanceSatang' | 'minimumDueSatang' | 'dueDate'>, statementId: ID) => Promise<unknown>
   removeStatement: (id: ID, statementId: ID) => Promise<unknown>
 }

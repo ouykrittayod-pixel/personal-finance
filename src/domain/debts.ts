@@ -408,7 +408,18 @@ export function addPrincipalAdjustment(
   if (issues.length > 0) return { ok: false, issues }
   const next: Debt = {
     ...debt,
-    principalAdjustments: [...(debt.principalAdjustments ?? []), { ...adjustment, note: adjustment.note?.trim() || undefined, createdAt: now }],
+    principalAdjustments: [
+      ...(debt.principalAdjustments ?? []),
+      {
+        id: adjustment.id,
+        date: adjustment.date,
+        amountSatang: adjustment.amountSatang,
+        // Only an increase can be "owed without interest"; the default (bears interest) is not stored.
+        ...(adjustment.interestBearing === false && adjustment.amountSatang > 0 ? { interestBearing: false } : {}),
+        note: adjustment.note?.trim() || undefined,
+        createdAt: now,
+      },
+    ],
     updatedAt: now,
   }
   if (!validateLoanTimeline(next, transactions).ok) return { ok: false, issues: ['opening_below_repaid'] }
