@@ -208,14 +208,22 @@ describe('Debts — repayment', () => {
     const pay = await screen.findByRole('dialog', { name: t('debts.pay.title', { name: 'สินเชื่อบ้าน' }) })
     expect(within(pay).getByLabelText(t('form.amount'))).toHaveDisplayValue(/^18,?000$/)
 
-    await user.click(within(pay).getByRole('button', { name: t('debts.pay.confirm') }))
-    expect(await within(pay).findByText(t('txForm.error.allocation_required'))).toBeInTheDocument()
+    // A reducing-balance loan with a known rate: the split is computed (daily interest) and can be typed over.
+    expect(await within(pay).findByText(/^ดอกเบี้ยรายวัน: เงินต้น ฿1,000,000 × 5\.5% ×/)).toBeInTheDocument()
+    expect(within(pay).getByLabelText(t('txForm.fee'))).toHaveDisplayValue('0')
+    expect(within(pay).getByLabelText(t('txForm.principal'))).not.toHaveDisplayValue('')
 
-    await user.type(within(pay).getByLabelText(t('txForm.principal')), '13500')
-    await user.type(within(pay).getByLabelText(t('txForm.interest')), '4400')
-    await user.type(within(pay).getByLabelText(t('txForm.fee')), '0')
+    for (const [label, value] of [
+      ['txForm.principal', '13500'],
+      ['txForm.interest', '4400'],
+      ['txForm.fee', '0'],
+    ] as const) {
+      await user.clear(within(pay).getByLabelText(t(label)))
+      await user.type(within(pay).getByLabelText(t(label)), value)
+    }
     await user.click(within(pay).getByRole('button', { name: t('debts.pay.confirm') }))
     expect(await within(pay).findByText(t('txForm.error.allocation_mismatch'))).toBeInTheDocument()
+    expect(within(pay).getByRole('button', { name: t('txForm.dailyInterestApply') })).toBeInTheDocument()
 
     await user.clear(within(pay).getByLabelText(t('txForm.fee')))
     await user.type(within(pay).getByLabelText(t('txForm.fee')), '100')
@@ -237,9 +245,14 @@ describe('Debts — repayment', () => {
     await user.click(within(dialog).getByRole('button', { name: t('debts.action.extra') }))
     const pay = await screen.findByRole('dialog', { name: t('debts.pay.extraTitle', { name: 'สินเชื่อบ้าน' }) })
     await user.type(within(pay).getByLabelText(t('form.amount')), '1000001')
-    await user.type(within(pay).getByLabelText(t('txForm.principal')), '1000001')
-    await user.type(within(pay).getByLabelText(t('txForm.interest')), '0')
-    await user.type(within(pay).getByLabelText(t('txForm.fee')), '0')
+    for (const [label, value] of [
+      ['txForm.principal', '1000001'],
+      ['txForm.interest', '0'],
+      ['txForm.fee', '0'],
+    ] as const) {
+      await user.clear(within(pay).getByLabelText(t(label)))
+      await user.type(within(pay).getByLabelText(t(label)), value)
+    }
     await user.click(within(pay).getByRole('button', { name: t('debts.pay.confirm') }))
     expect(await within(pay).findByText(t('txForm.error.principal_exceeds_outstanding'))).toBeInTheDocument()
     expect(await db.transactions.count()).toBe(0)
