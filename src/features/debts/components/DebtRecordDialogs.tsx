@@ -60,9 +60,12 @@ export function AdjustmentDialog({ debt, open, onClose, today, ops }: { debt: De
   const [amountText, setAmountText] = useState('')
   const [date, setDate] = useState<ISODate>(today)
   const [note, setNote] = useState('')
+  const [noInterest, setNoInterest] = useState(false)
+  const noInterestId = useId()
   const { errors, setErrors, saving, save } = useRecordForm(() => {
     setAmountText('')
     setNote('')
+    setNoInterest(false)
     onClose()
   })
 
@@ -73,7 +76,11 @@ export function AdjustmentDialog({ debt, open, onClose, today, ops }: { debt: De
       setErrors({ fields: { amount: t('debts.error.adjustment_invalid') } })
       return
     }
-    void save((id) => ops.addAdjustment(debt.id, { date, amountSatang: direction === 'increase' ? amount : negate(amount), note }, id), t('debts.toast.adjusted'), toast)
+    void save((id) => ops.addAdjustment(
+          debt.id,
+          { date, amountSatang: direction === 'increase' ? amount : negate(amount), note, ...(direction === 'increase' && noInterest ? { interestBearing: false } : {}) },
+          id,
+        ), t('debts.toast.adjusted'), toast)
   }
 
   return (
@@ -117,6 +124,22 @@ export function AdjustmentDialog({ debt, open, onClose, today, ops }: { debt: De
           <DateInput label={t('debts.adjust.date')} today={today} max={today} value={date} onValueChange={setDate} />
           <FieldError message={errors.fields.date ?? errors.fields.opening} />
         </div>
+        {direction === 'increase' && (
+          <label htmlFor={noInterestId} className="flex min-h-touch items-start gap-3 text-sm md:min-h-10">
+            <input
+              id={noInterestId}
+              type="checkbox"
+              checked={noInterest}
+              disabled={saving}
+              onChange={(event) => setNoInterest(event.target.checked)}
+              className="mt-0.5 size-5 accent-primary"
+            />
+            <span className="flex flex-col">
+              {t('debts.adjust.noInterest')}
+              <span className="text-xs text-muted-foreground">{t('debts.adjust.noInterestHint')}</span>
+            </span>
+          </label>
+        )}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={noteId}>{t('debts.adjust.note')}</Label>
           <Input id={noteId} value={note} onChange={(event) => setNote(event.target.value)} maxLength={120} autoComplete="off" disabled={saving} />

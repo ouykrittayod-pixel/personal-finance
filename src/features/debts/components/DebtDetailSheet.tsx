@@ -476,6 +476,7 @@ function DetailBody({
                     <span className="flex min-w-0 flex-col">
                       <span>{formatDate(a.date)}</span>
                       {a.note && <span className="truncate text-xs text-muted-foreground">{a.note}</span>}
+                      {a.interestBearing === false && <span className="text-xs text-muted-foreground">{t('debts.adjust.noInterest')}</span>}
                     </span>
                     <span className="tabular-nums">{`${a.amountSatang > 0 ? '+' : '−'}${money(abs(a.amountSatang))}`}</span>
                   </li>

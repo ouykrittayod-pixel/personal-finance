@@ -216,6 +216,11 @@ export interface PrincipalAdjustment {
   id: ID
   date: ISODate
   amountSatang: Satang
+  /**
+   * false = owed but never charged interest (e.g. accrued interest or fees a
+   * lender carries over). Default: bears interest like the rest of the principal.
+   */
+  interestBearing?: boolean
   note?: string
   createdAt: ISODateTime
 }

@@ -215,7 +215,7 @@ export function createDebtsRepository(database: FinanceDatabase) {
     },
 
     /** Loans: a dated principal increase (e.g. a top-up) or correction. Not a payment. Idempotent on `meta.id`. */
-    addAdjustment(id: ID, adjustment: Pick<PrincipalAdjustment, 'date' | 'amountSatang' | 'note'>, meta: { id: ID; now: string }): Promise<Debt> {
+    addAdjustment(id: ID, adjustment: Pick<PrincipalAdjustment, 'date' | 'amountSatang' | 'note' | 'interestBearing'>, meta: { id: ID; now: string }): Promise<Debt> {
       return write(async () => {
         const existing = await mustGet(id)
         if (existing.principalAdjustments?.some((a) => a.id === meta.id)) return existing
