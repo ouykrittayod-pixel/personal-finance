@@ -209,7 +209,7 @@ describe('Debts — repayment', () => {
     expect(within(pay).getByLabelText(t('form.amount'))).toHaveDisplayValue(/^18,?000$/)
 
     // A reducing-balance loan with a known rate: the split is computed (daily interest) and can be typed over.
-    expect(await within(pay).findByText(/^ดอกเบี้ยรายวัน: เงินต้น ฿1,000,000 × 5\.5% ×/)).toBeInTheDocument()
+    expect(await within(pay).findByText(/^ดอกเบี้ยรายวัน: เงินต้น ฿1,000,000\.00 × 5\.5% ×/)).toBeInTheDocument()
     expect(within(pay).getByLabelText(t('txForm.fee'))).toHaveDisplayValue('0')
     expect(within(pay).getByLabelText(t('txForm.principal'))).not.toHaveDisplayValue('')
 
