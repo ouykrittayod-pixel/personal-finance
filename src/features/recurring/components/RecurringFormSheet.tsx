@@ -93,7 +93,8 @@ function RecurringForm({
   const [frequency, setFrequency] = useState<Frequency>(rule ? (isOneOff(rule) ? 'once' : rule.frequency) : (initial?.frequency ?? 'monthly'))
   const [interval, setInterval] = useState(String(rule?.interval ?? 1))
   const [startDate, setStartDate] = useState<ISODate>(rule?.startDate ?? initial?.startDate ?? today)
-  const [dayOfMonth, setDayOfMonth] = useState(String(rule?.dayOfMonth ?? Number((rule?.startDate ?? today).slice(8, 10))))
+  // New bills are due by the last day of the month; income keeps the day it is expected.
+  const [dayOfMonth, setDayOfMonth] = useState(String(rule?.dayOfMonth ?? (income ? Number((rule?.startDate ?? today).slice(8, 10)) : 31)))
   const [dayOfWeek, setDayOfWeek] = useState<DayOfWeek>(rule?.dayOfWeek ?? weekdayOf(rule?.startDate ?? today))
   const [monthOfYear, setMonthOfYear] = useState(String(rule?.monthOfYear ?? Number((rule?.startDate ?? today).slice(5, 7))))
   const [hasEnd, setHasEnd] = useState(Boolean(rule?.endDate))
@@ -304,7 +305,7 @@ function RecurringForm({
                 hint={t('recurring.form.dayHint')}
                 value={dayOfMonth}
                 onValueChange={setDayOfMonth}
-                options={range(1, 31).map((d) => ({ value: String(d), label: String(d) }))}
+                options={range(1, 31).map((d) => ({ value: String(d), label: d === 31 ? t('recurring.form.monthEnd') : String(d) }))}
               />
             )}
           </>
