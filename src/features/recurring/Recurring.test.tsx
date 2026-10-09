@@ -148,7 +148,8 @@ describe('Recurring — create', () => {
     const save = screen.getByRole('button', { name: t('recurring.form.save') })
     await Promise.all([user.click(save), user.click(save)])
     await waitFor(async () => expect(await db.recurringObligations.count()).toBe(1))
-    expect(await db.scheduledPayments.count()).toBe(4) // day 25 from today: 25 Sep … 25 Dec
+    // New bills are due on the month's last day: 30 Sep, 31 Oct, 30 Nov (the window ends 25 Dec).
+    expect((await db.scheduledPayments.toArray()).map((p) => p.dueDate).sort()).toEqual(['2026-09-30', '2026-10-31', '2026-11-30'])
   })
 })
 
