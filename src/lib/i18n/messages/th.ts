@@ -251,6 +251,7 @@ export const th = {
   'recurring.form.intervalUnit.monthly': 'เดือน',
   'recurring.form.intervalUnit.yearly': 'ปี',
   'recurring.form.day': 'วันครบกำหนด (วันที่)',
+  'recurring.form.monthEnd': 'วันสุดท้ายของเดือน',
   'recurring.form.dayHint': 'ถ้าเดือนใดมีไม่ถึงวันนี้ จะใช้วันสุดท้ายของเดือนนั้น',
   'recurring.form.weekday': 'วันในสัปดาห์',
   'recurring.form.month': 'เดือน',
