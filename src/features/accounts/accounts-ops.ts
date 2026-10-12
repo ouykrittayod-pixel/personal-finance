@@ -18,8 +18,11 @@ export interface AccountsOps {
   update: (id: ID, draft: AccountDraft) => Promise<unknown>
   archive: (id: ID) => Promise<unknown>
   restore: (id: ID) => Promise<unknown>
-  /** Record the difference to the real balance as one adjustment today (liabilities: negative balance). */
-  reconcile: (id: ID, actualSatang: Satang) => Promise<unknown>
+  /**
+   * Record the difference to the real balance today (liabilities: negative balance) as one
+   * adjustment — or, for a credit line whose lender shows more owed, as an interest / fees expense.
+   */
+  reconcile: (id: ID, actualSatang: Satang, options?: { chargesAsExpense?: boolean }) => Promise<unknown>
 }
 
 export const defaultAccountsOps: AccountsOps = {
@@ -27,7 +30,13 @@ export const defaultAccountsOps: AccountsOps = {
   update: (id, draft) => accountsRepository.update(id, draft, { now: now() }),
   archive: (id) => accountsRepository.archive(id, { now: now() }),
   restore: (id) => accountsRepository.restore(id, { now: now() }),
-  reconcile: (id, actualSatang) => transactionsRepository.reconcileBalance(id, actualSatang, { id: newId(), now: now(), date: todayISO() }),
+  reconcile: (id, actualSatang, options) =>
+    transactionsRepository.reconcileBalance(id, actualSatang, {
+      id: newId(),
+      now: now(),
+      date: todayISO(),
+      ...(options?.chargesAsExpense ? { chargesAsExpense: { newCategoryId: newId() } } : {}),
+    }),
 }
 
 export type AccountField = 'name' | 'kind' | 'opening' | 'openingDate' | 'creditLimit' | 'cardDays'

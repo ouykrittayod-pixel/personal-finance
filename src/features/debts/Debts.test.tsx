@@ -34,6 +34,9 @@ function testOps(overrides: Partial<DebtsOps> = {}): DebtsOps {
     addAdjustment: (id, adjustment, adjustmentId) => debtsRepository.addAdjustment(id, adjustment, { id: adjustmentId, now: stamp.now }),
     addStatement: (id, statement, statementId) => debtsRepository.addStatement(id, statement, { ...stamp, id: statementId }),
     removeStatement: (id, statementId) => debtsRepository.removeStatement(id, statementId, stamp),
+    addDrawdown: (id, draft, transactionId) => debtsRepository.addDrawdown(id, draft, { id: transactionId, now: stamp.now }),
+    reconcileCard: (id, actual, options) =>
+      transactionsRepository.reconcileBalance(id, actual, { id: newId(), now: stamp.now, date: TODAY, ...(options?.chargesAsExpense ? { chargesAsExpense: { newCategoryId: newId() } } : {}) }),
     ...overrides,
   }
 }
@@ -201,6 +204,23 @@ describe('Debts — repayment', () => {
     await debtsRepository.create(mortgage(), { ...stamp, id: 'home' })
   })
 
+  it('records money borrowed into an account as one drawdown: the loan and the account go up, nothing is income', async () => {
+    const { user } = renderDebts()
+    const dialog = await openDetail(user, /สินเชื่อบ้าน/)
+    await user.click(within(dialog).getByRole('button', { name: t('debts.action.drawdown') }))
+    const form = await screen.findByRole('dialog', { name: t('debts.drawdown.title') })
+    await user.type(within(form).getByLabelText(t('form.amount')), '20000')
+    await user.dblClick(within(form).getByRole('button', { name: t('debts.drawdown.save') }))
+    await screen.findByText(t('debts.toast.drawdown', { name: 'สินเชื่อบ้าน', amount: '฿20,000' }))
+
+    const { balances, debts, transactions } = await snapshot()
+    expect(transactions).toHaveLength(1)
+    expect(transactions[0]).toMatchObject({ type: 'adjustment', debtId: 'home', accountId: 'bank', amountSatang: baht(20_000) })
+    expect(balances.get('bank')).toBe(baht(120_000))
+    expect(debts.totalOutstanding).toBe(baht(1_020_000))
+    expect(await within(dialog).findByText(t('debts.detail.drawdownInto', { account: 'KBank' }))).toBeInTheDocument()
+  })
+
   it('pays the installment with a required principal / interest / fee split', async () => {
     const { user } = renderDebts()
     const dialog = await openDetail(user, /สินเชื่อบ้าน/)
@@ -312,6 +332,23 @@ describe('Debts — credit card', () => {
     await db.accounts.add(makeAccount({ id: 'card', name: 'บัตร KTC', kind: 'credit_card', sortOrder: 2 }))
     await debtsRepository.create({ name: 'KTC', kind: 'credit_card', openingBalanceSatang: null, openingDate: TODAY, interestMethod: 'unknown', linkedAccountId: 'card' }, { ...stamp, id: 'cc' })
     await transactionsRepository.createExpense({ amountSatang: baht(3_000), accountId: 'card', categoryId: 'food', date: TODAY }, [], { id: 'e1', ...stamp })
+  })
+
+  it('updates from the lender app by remaining limit; the extra owed is recorded as interest / fees', async () => {
+    await db.accounts.update('card', { creditLimitSatang: baht(10_000) })
+    const { user } = renderDebts()
+    const dialog = await openDetail(user, /KTC/)
+    await user.click(within(dialog).getByRole('button', { name: t('accounts.reconcile.actionCard') }))
+    const update = await screen.findByRole('dialog', { name: t('accounts.reconcile.titleCard') })
+    await user.type(within(update).getByLabelText(t('accounts.reconcile.actualRemaining')), '6500')
+    expect(within(update).getByText(t('accounts.reconcile.owedFromRemaining', { limit: '฿10,000', remaining: '฿6,500', owed: '฿3,500' }))).toBeInTheDocument()
+    expect(within(update).getByText(t('accounts.reconcile.diffCharges', { amount: '฿500' }))).toBeInTheDocument()
+    await user.click(within(update).getByRole('button', { name: t('accounts.reconcile.save') }))
+    await waitFor(async () => expect((await snapshot()).debts.totalOutstanding).toBe(baht(3_500)))
+
+    const charges = (await db.transactions.toArray()).find((tx) => tx.type === 'expense' && tx.amountSatang === baht(500))
+    expect(charges).toMatchObject({ accountId: 'card' })
+    expect((await db.categories.get(charges!.categoryId!))?.name).toBe('ดอกเบี้ย/ค่าธรรมเนียม')
   })
 
   it('pays the card without a split; the purchase stays the only expense', async () => {

@@ -1,13 +1,15 @@
-import type { Account, CardStatement, Debt, ID, ISODate, PrincipalAdjustment } from '@/domain/entities'
+import type { Account, CardStatement, Debt, ID, ISODate, PrincipalAdjustment, Transaction } from '@/domain/entities'
 import {
   addPrincipalAdjustment,
   buildDebt,
+  buildDrawdown,
   debtScheduleSource,
   isRevolving,
   statementExpectedAmount,
   validateStatement,
   type AdjustmentIssue,
   type DebtDraft,
+  type DrawdownIssue,
   type DebtIssue,
   type StatementIssue,
 } from '@/domain/debts'
@@ -17,7 +19,7 @@ import type { FinanceDatabase } from '../dexie'
 import { rethrowStorage } from '../errors'
 import { occurrenceRecords } from './recurring-obligations'
 
-export type DebtWriteIssue = DebtIssue | AdjustmentIssue | StatementIssue | 'statement_exists' | 'statement_paid' | 'card_name_required'
+export type DebtWriteIssue = DebtIssue | AdjustmentIssue | DrawdownIssue | StatementIssue | 'statement_exists' | 'statement_paid' | 'card_name_required'
 
 /** Domain validation failed; nothing was written. */
 export class DebtValidationError extends Error {
@@ -224,6 +226,23 @@ export function createDebtsRepository(database: FinanceDatabase) {
         if (!result.ok) throw new DebtValidationError(result.issues)
         await database.debts.put(result.debt)
         return result.debt
+      })
+    },
+
+    /**
+     * Loans: borrowed money paid into one of your accounts ("รับเงินกู้เพิ่ม") —
+     * one adjustment transaction with the debt's id. Idempotent on `meta.id`.
+     */
+    addDrawdown(id: ID, draft: { accountId: ID; amountSatang: Satang; date: ISODate; note?: string }, meta: { id: ID; now: string }): Promise<Transaction> {
+      return write(async () => {
+        const stored = await database.transactions.get(meta.id)
+        if (stored) return stored
+        const existing = await mustGet(id)
+        const account = await database.accounts.get(draft.accountId)
+        const result = buildDrawdown(existing, account, draft, meta)
+        if (!result.ok) throw new DebtValidationError(result.issues)
+        await database.transactions.add(result.transaction)
+        return result.transaction
       })
     },
 

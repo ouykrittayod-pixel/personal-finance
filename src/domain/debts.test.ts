@@ -3,6 +3,7 @@ import { baht, makeAccount, makeDebt, makeObligation, makeTx } from '@/test/fact
 import {
   addPrincipalAdjustment,
   buildDebt,
+  buildDrawdown,
   cardPosition,
   debtPosition,
   debtScheduleSource,
@@ -260,5 +261,31 @@ describe('percent parsing', () => {
     expect(formatBpsAsPercent(525)).toBe('5.25')
     expect(formatBpsAsPercent(550)).toBe('5.5')
     expect(formatBpsAsPercent(1_800)).toBe('18')
+  })
+})
+
+describe('loan drawdowns', () => {
+  const home = makeDebt({ id: 'home', kind: 'mortgage', openingBalanceSatang: baht(1_000_000), openingDate: '2026-03-01' })
+  const bank = makeAccount({ id: 'bank', kind: 'bank' })
+
+  it('builds one adjustment with the debt id into an asset account', () => {
+    const result = buildDrawdown(home, bank, { amountSatang: baht(50_000), date: '2026-06-01', note: ' top-up ' }, { id: 'd1', now: 'now' })
+    expect(result).toMatchObject({ ok: true, transaction: { id: 'd1', type: 'adjustment', debtId: 'home', accountId: 'bank', amountSatang: baht(50_000), note: 'top-up' } })
+  })
+
+  it('refuses cards, non-positive amounts, dates before the opening and liability or archived accounts', () => {
+    expect(buildDrawdown({ ...home, kind: 'credit_card' }, bank, { amountSatang: baht(1), date: '2026-06-01' }, { id: 'd', now: 'n' })).toEqual({ ok: false, issues: ['not_a_loan'] })
+    expect(buildDrawdown(home, bank, { amountSatang: 0 as Satang, date: '2026-02-01' }, { id: 'd', now: 'n' })).toEqual({ ok: false, issues: ['adjustment_invalid', 'adjustment_before_opening'] })
+    expect(buildDrawdown(home, makeAccount({ kind: 'credit_card' }), { amountSatang: baht(1), date: '2026-06-01' }, { id: 'd', now: 'n' })).toEqual({ ok: false, issues: ['drawdown_account_invalid'] })
+    expect(buildDrawdown(home, { ...bank, archivedAt: 'x' }, { amountSatang: baht(1), date: '2026-06-01' }, { id: 'd', now: 'n' })).toEqual({ ok: false, issues: ['drawdown_account_invalid'] })
+  })
+
+  it('raises the principal from its date and keeps the timeline valid', () => {
+    const drawdown = makeTx({ type: 'adjustment', debtId: 'home', accountId: 'bank', amountSatang: baht(50_000), date: '2026-06-01' })
+    expect(loanPosition(home, [drawdown], '2026-05-31').outstanding).toBe(baht(1_000_000))
+    expect(loanPosition(home, [drawdown]).outstanding).toBe(baht(1_050_000))
+    const big = pay(baht(1_040_000), { amountSatang: baht(1_040_000), interestSatang: 0 as Satang, date: '2026-07-01' })
+    expect(validateLoanTimeline(home, [drawdown, big]).ok).toBe(true)
+    expect(validateLoanTimeline(home, [big]).ok).toBe(false)
   })
 })

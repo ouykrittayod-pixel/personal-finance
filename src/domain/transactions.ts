@@ -51,6 +51,28 @@ export function accountEffects(tx: Pick<Transaction, 'type' | 'amountSatang' | '
   }
 }
 
+export type TransferIssue = 'transfer_liability_not_allowed'
+
+/**
+ * A cash advance: money drawn from a credit line (credit card / cash card) into
+ * an account you hold. One transfer: what is owed on the line goes up, the
+ * account goes up — never income.
+ */
+export const isCashAdvance = (from: Pick<Account, 'kind'> | undefined, to: Pick<Account, 'kind'> | undefined): boolean =>
+  from?.kind === 'credit_card' && to !== undefined && accountClassOf(to.kind) === 'asset'
+
+/**
+ * Transfer rule beyond the generic transaction checks (source/destination
+ * required, different, existing, active, amount > 0): between asset accounts,
+ * or a cash advance out of a credit line. Money INTO a liability is a payment
+ * (ชำระหนี้), never a transfer. Returns [] when allowed.
+ */
+export function validateTransferAccounts(from: Pick<Account, 'kind'> | undefined, to: Pick<Account, 'kind'> | undefined): TransferIssue[] {
+  if (to && accountClassOf(to.kind) === 'liability') return ['transfer_liability_not_allowed']
+  if (from && accountClassOf(from.kind) === 'liability' && !isCashAdvance(from, to)) return ['transfer_liability_not_allowed']
+  return []
+}
+
 /** Only `expense` transactions count toward spending, budgets and expense analytics. */
 export function countsAsSpending(tx: Pick<Transaction, 'type'>): boolean {
   return tx.type === 'expense'
@@ -70,6 +92,8 @@ export type TransactionIssue =
   | 'debt_payment_from_liability'
   | 'category_not_allowed'
   | 'debt_not_allowed'
+  | 'drawdown_must_be_positive'
+  | 'drawdown_into_liability'
   | 'breakdown_exceeds_amount'
 
 const TYPES_WITH_CATEGORY: ReadonlySet<TransactionType> = new Set(['expense', 'income'])
@@ -105,7 +129,12 @@ export function validateTransaction(
     issues.push('to_account_not_allowed')
   }
   if (tx.categoryId !== undefined && !TYPES_WITH_CATEGORY.has(tx.type)) issues.push('category_not_allowed')
-  if (tx.debtId !== undefined && tx.type !== 'debt_payment') issues.push('debt_not_allowed')
+  // An adjustment with a debt is a loan drawdown: borrowed money arriving in one of your accounts.
+  if (tx.debtId !== undefined && tx.type !== 'debt_payment' && tx.type !== 'adjustment') issues.push('debt_not_allowed')
+  if (tx.type === 'adjustment' && tx.debtId !== undefined) {
+    if (tx.amountSatang <= 0) issues.push('drawdown_must_be_positive')
+    if (from && accountClassOf(from.kind) === 'liability') issues.push('drawdown_into_liability')
+  }
 
   if (tx.type === 'transfer' && tx.toAccountId === undefined) issues.push('transfer_requires_to_account')
 
@@ -279,9 +308,9 @@ export function buildTransaction(draft: TransactionDraft, context: DraftContext,
     case 'transfer': {
       if (!draft.toAccountId) issues.push('to_account_required')
       toAccountId = draft.toAccountId
-      // Money into/out of a credit card is a purchase (expense) or a card payment (debt_payment), never a transfer.
-      const ends = [draft.accountId, draft.toAccountId].map((id) => (id ? context.accounts.get(id) : undefined))
-      if (ends.some((account) => account && accountClassOf(account.kind) === 'liability')) issues.push('transfer_liability_not_allowed')
+      // Money into a credit card is a card payment (debt_payment); out of one, only a cash advance into your own account.
+      const [from, to] = [draft.accountId, draft.toAccountId].map((id) => (id ? context.accounts.get(id) : undefined))
+      issues.push(...validateTransferAccounts(from, to))
       break
     }
     case 'debt_payment': {

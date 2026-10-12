@@ -129,10 +129,12 @@ describe('transfer validation (buildTransaction)', () => {
     expect(result.ok && [result.transaction.accountId, result.transaction.toAccountId]).toEqual(['cash', 'kbank'])
   })
 
-  it('validateTransferAccounts: asset ↔ asset only', () => {
+  it('validateTransferAccounts: between assets, or a cash advance out of a credit line — never into one', () => {
     expect(validateTransferAccounts(kbank, invest)).toEqual([])
     expect(validateTransferAccounts(kbank, card)).toEqual(['transfer_liability_not_allowed'])
-    expect(validateTransferAccounts(card, kbank)).toEqual(['transfer_liability_not_allowed'])
+    expect(validateTransferAccounts(card, kbank)).toEqual([])
+    expect(validateTransferAccounts(card, card)).toEqual(['transfer_liability_not_allowed'])
+    expect(validateTransferAccounts({ kind: 'loan' }, kbank)).toEqual(['transfer_liability_not_allowed'])
   })
 })
 

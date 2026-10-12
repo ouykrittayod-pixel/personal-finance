@@ -70,6 +70,13 @@ describe('dailyInterestSplit', () => {
     expect(split).toMatchObject({ interest: satang(55.36), principal: satang(1_944.64) })
   })
 
+  it('counts money drawn since the last payment in the principal that bears interest', () => {
+    const history = [...TABLE.map(([date, principal, interest]) => pay(date, principal, interest)),
+      makeTx({ id: 'draw', type: 'adjustment', debtId: 'sam', accountId: 'bank', date: '2026-10-01', amountSatang: baht(10_000) })]
+    const split = dailyInterestSplit(loan, history, { date: '2026-10-30', amountSatang: baht(600) })
+    expect(split?.base).toBe(satang(32_453.53))
+  })
+
   it('leaves out the payment being edited', () => {
     const history = TABLE.map(([date, principal, interest]) => pay(date, principal, interest))
     const split = dailyInterestSplit(loan, history, { date: '2026-09-30', amountSatang: baht(600), excludeId: '2026-09-30' })

@@ -4,7 +4,9 @@
  */
 import { debtsRepository, scheduledPaymentsRepository, transactionsRepository, type NewAttachment, type NewCardAccount } from '@/db/repositories'
 import type { DebtDraft } from '@/domain/debts'
-import type { CardStatement, ID, PrincipalAdjustment } from '@/domain/entities'
+import type { CardStatement, ID, ISODate, PrincipalAdjustment } from '@/domain/entities'
+import type { Satang } from '@/domain/money'
+import { defaultAccountsOps, type AccountsOps } from '@/features/accounts/accounts-ops'
 import type { TransactionDraft } from '@/domain/transactions'
 import { todayISO } from '@/lib/dates'
 import { newId } from '@/lib/ids'
@@ -26,6 +28,10 @@ export interface DebtsOps {
   addAdjustment: (id: ID, adjustment: Pick<PrincipalAdjustment, 'date' | 'amountSatang' | 'note' | 'interestBearing'>, adjustmentId: ID) => Promise<unknown>
   addStatement: (id: ID, statement: Pick<CardStatement, 'statementDate' | 'balanceSatang' | 'minimumDueSatang' | 'dueDate'>, statementId: ID) => Promise<unknown>
   removeStatement: (id: ID, statementId: ID) => Promise<unknown>
+  /** Loans: borrowed money paid into an account (one transaction). Idempotent on `transactionId`. */
+  addDrawdown: (id: ID, draft: { accountId: ID; amountSatang: Satang; date: ISODate; note?: string }, transactionId: ID) => Promise<unknown>
+  /** Cards / credit lines: bring what is owed in line with the lender's app (see AccountsOps.reconcile). */
+  reconcileCard: AccountsOps['reconcile']
 }
 
 export const defaultDebtsOps: DebtsOps = {
@@ -42,4 +48,6 @@ export const defaultDebtsOps: DebtsOps = {
   addAdjustment: (id, adjustment, adjustmentId) => debtsRepository.addAdjustment(id, adjustment, { id: adjustmentId, now: new Date().toISOString() }),
   addStatement: (id, statement, statementId) => debtsRepository.addStatement(id, statement, { ...stamp(), id: statementId }),
   removeStatement: (id, statementId) => debtsRepository.removeStatement(id, statementId, { now: new Date().toISOString() }),
+  addDrawdown: (id, draft, transactionId) => debtsRepository.addDrawdown(id, draft, { id: transactionId, now: new Date().toISOString() }),
+  reconcileCard: defaultAccountsOps.reconcile,
 }

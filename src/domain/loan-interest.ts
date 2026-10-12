@@ -5,7 +5,7 @@
  *   interest = interest-bearing principal × annual rate × days ÷ days in year
  *
  * - interest-bearing principal: opening balance + principal adjustments that
- *   bear interest − principal already repaid (before this payment). Amounts the
+ *   bear interest + drawdowns − principal already repaid (before this payment). Amounts the
  *   lender carries without interest (accrued interest, court fees…) are
  *   adjustments with `interestBearing: false`: they are owed, but never earn
  *   interest.
@@ -18,7 +18,7 @@
  * it in and the user can still type what the receipt says. Pure.
  */
 import type { Debt, ID, ISODate, Transaction } from './entities'
-import { allocationOf } from './debts'
+import { allocationOf, drawdownsFor } from './debts'
 import { add, multiplyRatio, subtract, ZERO, type Satang } from './money'
 
 export interface DailyInterestSplit {
@@ -70,7 +70,10 @@ export function dailyInterestSplit(
   const bearing = (debt.principalAdjustments ?? [])
     .filter((a) => a.interestBearing !== false && a.date >= debt.openingDate && a.date <= payment.date)
     .reduce((total, a) => add(total, a.amountSatang), ZERO)
-  const owed = subtract(add(debt.openingBalanceSatang, bearing), repaid)
+  const drawn = drawdownsFor(debt.id, transactions)
+    .filter((tx) => tx.id !== payment.excludeId && tx.date >= debt.openingDate && tx.date <= payment.date)
+    .reduce((total, tx) => add(total, tx.amountSatang), ZERO)
+  const owed = subtract(add(add(debt.openingBalanceSatang, bearing), drawn), repaid)
   const base = owed > 0 ? owed : ZERO
 
   const days = daysBetween(from, payment.date)

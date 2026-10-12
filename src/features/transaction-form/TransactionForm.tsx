@@ -143,9 +143,16 @@ export function TransactionForm({
   const [amountText, setAmountText] = useState(initial?.amountSatang !== undefined ? grouped(initial.amountSatang) : '')
   const [categoryId, setCategoryId] = useState<ID | undefined>(initial?.categoryId)
   const [description, setDescription] = useState(initial?.description ?? '')
-  // Never preselect an account this type cannot use (e.g. a credit card as a transfer's source).
+  // Never preselect an account this type cannot use (e.g. a credit card as a debt payment's source).
+  // A transfer may start from a credit line: that is a cash advance (กดเงินสด).
   const allowedFrom = (id: ID | undefined) =>
-    id && (editing || type === 'expense' || type === 'income' || data.accounts.some((a) => a.id === id && accountClassOf(a.kind) === 'asset')) ? id : undefined
+    id &&
+    (editing ||
+      type === 'expense' ||
+      type === 'income' ||
+      data.accounts.some((a) => a.id === id && (accountClassOf(a.kind) === 'asset' || (type === 'transfer' && a.kind === 'credit_card'))))
+      ? id
+      : undefined
   const [accountId, setAccountId] = useState<ID | undefined>(allowedFrom(initial?.accountId ?? data.defaultAccountId))
   const hasAccount = accountId !== undefined
   const [toAccountId, setToAccountId] = useState<ID | undefined>(initial?.toAccountId)
@@ -201,7 +208,10 @@ export function TransactionForm({
   const accountOption = (a: Account) => ({ value: a.id, label: a.name, icon: createElement(ACCOUNT_KIND_VISUALS[a.kind].icon) })
   // Debts are paid from money you have, not from another liability.
   // Transfers move money between asset accounts only (a card is paid with ชำระหนี้).
-  const sourceAccounts = type === 'debt_payment' || type === 'transfer' ? data.accounts.filter((a) => accountClassOf(a.kind) === 'asset') : data.accounts
+  const assetAccounts = data.accounts.filter((a) => accountClassOf(a.kind) === 'asset')
+  const sourceAccounts =
+    type === 'debt_payment' ? assetAccounts : type === 'transfer' ? data.accounts.filter((a) => accountClassOf(a.kind) === 'asset' || a.kind === 'credit_card') : data.accounts
+  const cashAdvance = type === 'transfer' && account?.kind === 'credit_card'
 
   const clearFieldError = (field: keyof FormErrors['fields']) =>
     setErrors((current) => (current.fields[field] ? { ...current, fields: { ...current.fields, [field]: undefined } } : current))
@@ -530,7 +540,7 @@ export function TransactionForm({
               <AccountSelector
                 label={t('txForm.toAccount')}
                 name={`${formId}-to`}
-                options={sourceAccounts.filter((a) => a.id !== accountId || a.id === toAccountId).map(accountOption)}
+                options={assetAccounts.filter((a) => a.id !== accountId || a.id === toAccountId).map(accountOption)}
                 value={toAccountId}
                 onValueChange={(id) => {
                   setToAccountId(id)
@@ -538,6 +548,7 @@ export function TransactionForm({
                 }}
               />
               <FieldError message={errors.fields.toAccount} />
+              {cashAdvance && <p className="text-xs text-muted-foreground">{t('transfer.cashAdvanceHint')}</p>}
             </div>
           )}
 

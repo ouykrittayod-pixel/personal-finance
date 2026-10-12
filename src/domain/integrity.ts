@@ -21,7 +21,7 @@ import type { Satang } from './money'
 import { validateRecurrence } from './recurrence'
 import { accountBalances } from './reporting'
 import { paymentTypeFor } from './scheduling'
-import { accountClassOf, accountEffects, isCalendarDate, validateTransaction } from './transactions'
+import { accountEffects, isCalendarDate, validateTransaction, validateTransferAccounts } from './transactions'
 
 export interface BlobInfo {
   id: ID
@@ -186,8 +186,8 @@ export function auditIntegrity(s: IntegritySnapshot): IntegrityReport {
     }
     if (tx.type === 'income' && category && category.kind !== 'income') report('transaction', t, tx.id, 'category_not_income')
     if (tx.type === 'transfer') {
-      const ends = [tx.accountId, tx.toAccountId].map((id) => (id ? accounts.get(id) : undefined))
-      if (ends.some((a) => a && accountClassOf(a.kind) === 'liability')) report('transaction', t, tx.id, 'transfer_liability_not_allowed')
+      const [from, to] = [tx.accountId, tx.toAccountId].map((id) => (id ? accounts.get(id) : undefined))
+      if (validateTransferAccounts(from, to).length > 0) report('transaction', t, tx.id, 'transfer_liability_not_allowed')
     }
     if (tx.type === 'debt_payment' && tx.principalSatang !== undefined) {
       const parts = [tx.principalSatang, tx.interestSatang ?? 0, tx.feeSatang ?? 0]

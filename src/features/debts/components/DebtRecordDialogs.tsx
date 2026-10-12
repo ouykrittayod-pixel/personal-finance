@@ -1,13 +1,17 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { createElement, useId, useRef, useState, type FormEvent } from 'react'
 import { PrimaryButton, SecondaryButton } from '@/components/actions/buttons'
 import { useToast } from '@/components/feedback/toast-context'
+import { ACCOUNT_KIND_VISUALS } from '@/components/finance/account-visuals'
+import { AccountSelector } from '@/components/forms/AccountSelector'
 import { AmountInput } from '@/components/forms/AmountInput'
 import { ChoiceGroup } from '@/components/forms/ChoiceGroup'
 import { DateInput } from '@/components/forms/DateInput'
 import { Dialog } from '@/components/overlays/Dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { Debt, ISODate } from '@/domain/entities'
+import type { Account, Debt, ISODate } from '@/domain/entities'
+import { accountClassOf } from '@/domain/transactions'
+import { formatTHB } from '@/lib/formatting'
 import { negate, tryParseBaht, type Satang } from '@/domain/money'
 import { addDays } from '@/domain/recurrence'
 import { t } from '@/lib/i18n'
@@ -50,6 +54,106 @@ function useRecordForm(onDone: () => void) {
 }
 
 const parseRequired = (text: string): Satang | null => (text.trim() === '' ? null : tryParseBaht(text.trim()))
+
+/**
+ * Loans: "รับเงินกู้เพิ่ม" — borrowed money paid into one of your accounts.
+ * One transaction: the account goes up and so does the loan; never income.
+ */
+export function DrawdownDialog({
+  debt,
+  accounts,
+  open,
+  onClose,
+  today,
+  ops,
+}: {
+  debt: Debt
+  accounts: readonly Account[]
+  open: boolean
+  onClose: () => void
+  today: ISODate
+  ops: Pick<DebtsOps, 'addDrawdown'>
+}) {
+  const toast = useToast()
+  const formId = useId()
+  const noteId = useId()
+  const choices = accounts.filter((a) => !a.archivedAt && accountClassOf(a.kind) === 'asset')
+  const [amountText, setAmountText] = useState('')
+  const [date, setDate] = useState<ISODate>(today)
+  const [accountId, setAccountId] = useState<string | undefined>(choices[0]?.id)
+  const [note, setNote] = useState('')
+  const { errors, setErrors, saving, save } = useRecordForm(() => {
+    setAmountText('')
+    setNote('')
+    onClose()
+  })
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    const amount = parseRequired(amountText)
+    if (amount === null || amount <= 0) {
+      setErrors({ fields: { amount: t('debts.error.adjustment_invalid') } })
+      return
+    }
+    if (!accountId) {
+      setErrors({ fields: { account: t('debts.error.drawdown_account_invalid') } })
+      return
+    }
+    void save(
+      (id) => ops.addDrawdown(debt.id, { accountId, amountSatang: amount, date, note }, id),
+      t('debts.toast.drawdown', { name: debt.name, amount: formatTHB(amount, { trimZeroFraction: true }) }),
+      toast,
+    )
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !saving) onClose()
+      }}
+      title={t('debts.drawdown.title')}
+      description={t('debts.drawdown.hint')}
+      footer={
+        <>
+          <SecondaryButton onClick={onClose} disabled={saving}>
+            {t('detail.cancel')}
+          </SecondaryButton>
+          <PrimaryButton type="submit" form={formId} loading={saving}>
+            {t('debts.drawdown.save')}
+          </PrimaryButton>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={submit} noValidate className="flex flex-col gap-stack">
+        {errors.form && (
+          <p role="alert" className="text-sm text-destructive">
+            {errors.form}
+          </p>
+        )}
+        <AmountInput size="md" label={t('form.amount')} value={amountText} onValueChange={(value) => setAmountText(value)} error={errors.fields.amount} tone="debt" disabled={saving} />
+        <div className="flex flex-col gap-1.5">
+          <AccountSelector
+            label={t('debts.drawdown.account')}
+            name={`${formId}-account`}
+            options={choices.map((a) => ({ value: a.id, label: a.name, icon: createElement(ACCOUNT_KIND_VISUALS[a.kind].icon) }))}
+            value={accountId}
+            onValueChange={setAccountId}
+          />
+          <FieldError message={errors.fields.account} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <DateInput label={t('debts.adjust.date')} today={today} max={today} value={date} onValueChange={setDate} />
+          <FieldError message={errors.fields.date} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={noteId}>{t('debts.adjust.note')}</Label>
+          <Input id={noteId} value={note} onChange={(event) => setNote(event.target.value)} maxLength={120} autoComplete="off" disabled={saving} />
+        </div>
+      </form>
+    </Dialog>
+  )
+}
 
 /** Loans: record a principal increase (top-up) or correction — not a payment. */
 export function AdjustmentDialog({ debt, open, onClose, today, ops }: { debt: Debt; open: boolean; onClose: () => void; today: ISODate; ops: Pick<DebtsOps, 'addAdjustment'> }) {

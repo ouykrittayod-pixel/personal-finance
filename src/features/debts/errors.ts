@@ -20,6 +20,7 @@ export type DebtField =
   | 'dueDate'
   | 'balance'
   | 'minimum'
+  | 'account'
 
 export interface DebtErrors {
   fields: Partial<Record<DebtField, string>>
@@ -48,6 +49,7 @@ const FIELD_OF: Record<DebtWriteIssue, [DebtField | null, MessageKey]> = {
   adjustment_invalid: ['amount', 'debts.error.adjustment_invalid'],
   adjustment_date_invalid: ['date', 'debts.error.adjustment_date_invalid'],
   adjustment_before_opening: ['date', 'debts.error.adjustment_before_opening'],
+  drawdown_account_invalid: ['account', 'debts.error.drawdown_account_invalid'],
   not_a_loan: [null, 'debts.error.not_a_loan'],
   not_a_card: [null, 'debts.error.not_a_card'],
   statement_date_invalid: ['statementDate', 'debts.error.statement_date_invalid'],
