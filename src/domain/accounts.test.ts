@@ -118,10 +118,15 @@ describe('transfer validation (buildTransaction)', () => {
     [{ amountSatang: baht(-5) }, 'amount_must_be_positive'],
     [{ toAccountId: 'ghost' }, 'unknown_to_account'],
     [{ toAccountId: 'card' }, 'transfer_liability_not_allowed'],
-    [{ accountId: 'card' }, 'transfer_liability_not_allowed'],
+    [{ accountId: 'card', toAccountId: 'card' }, 'same_account'],
   ] as const)('rejects %j with %s', (overrides, issue) => {
     const result = build(overrides as Partial<TransactionDraft>)
     expect(!result.ok && result.issues).toContain(issue)
+  })
+
+  it('accepts a cash advance out of a credit card into an account', () => {
+    const result = build({ accountId: 'card' })
+    expect(result.ok && [result.transaction.accountId, result.transaction.toAccountId]).toEqual(['card', 'cash'])
   })
 
   it('never silently swaps source and destination', () => {
