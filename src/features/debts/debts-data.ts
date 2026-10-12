@@ -13,7 +13,7 @@ import {
   transactionsRepository,
 } from '@/db/repositories'
 import { estimatePayoff, type PayoffEstimate } from '@/domain/amortization'
-import { debtPosition, isDebtActive, isRevolving, loanProgress, obligationOwningDebt, owedOf, type DebtPosition } from '@/domain/debts'
+import { debtPosition, drawdownsFor, isDebtActive, isRevolving, loanProgress, obligationOwningDebt, owedOf, type DebtPosition } from '@/domain/debts'
 import type { Account, CardStatement, Category, Debt, ID, ISODate, RecurringObligation, ScheduledPayment, Transaction } from '@/domain/entities'
 import { add, ratioBps, sum, ZERO, type BasisPoints, type Satang } from '@/domain/money'
 import { addDays } from '@/domain/recurrence'
@@ -216,6 +216,8 @@ export interface DebtDetail {
   owner?: RecurringObligation
   /** Debt payments, newest first. */
   payments: Transaction[]
+  /** Loans: borrowed money paid into an account ("รับเงินกู้เพิ่ม"), newest first. */
+  drawdowns: Transaction[]
   withReceipts: Set<ID>
   estimate: PayoffEstimate
   /** For forms. */
@@ -238,6 +240,7 @@ export function buildDebtDetail(raw: DebtsRawData, id: ID, withReceipts: Set<ID>
     occurrences: occurrencesForDebt(debt, raw.payments, raw.obligations).sort((a, b) => b.dueDate.localeCompare(a.dueDate)),
     owner: obligationOwningDebt(id, raw.obligations),
     payments,
+    drawdowns: drawdownsFor(id, raw.transactions).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
     withReceipts,
     estimate: position.model === 'loan' ? estimatePayoff(debt, position.outstanding) : { kind: 'unavailable' },
     accounts: raw.accounts,

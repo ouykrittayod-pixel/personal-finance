@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Archive, Banknote, CreditCard, Landmark, Paperclip, Pause, Pencil, Play, Plus, SearchX, Trash2 } from 'lucide-react'
+import { Archive, Banknote, CreditCard, HandCoins, Landmark, Paperclip, Pause, Pencil, Play, Plus, Scale, SearchX, Trash2 } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { PrimaryButton, SecondaryButton } from '@/components/actions/buttons'
@@ -15,15 +15,19 @@ import { Drawer } from '@/components/overlays/Drawer'
 import { Button } from '@/components/ui/button'
 import { allocationOf, formatBpsAsPercent, isRevolving, loanProgress } from '@/domain/debts'
 import type { Debt, ID, ISODate, ScheduledPayment } from '@/domain/entities'
-import { abs, ratioBps, ZERO, type Satang } from '@/domain/money'
+import { abs, negate, ratioBps, ZERO, type Satang } from '@/domain/money'
 import { addMonthsYM, formatYearMonth } from '@/lib/dates'
 import { formatDate, formatPercentBps, formatTHB } from '@/lib/formatting'
 import { t } from '@/lib/i18n'
 import { describeOccurrence, loadDebtDetail, type DebtDetail } from '../debts-data'
 import type { DebtsOps } from '../debts-ops'
 import { debtActionFailureMessage } from '../errors'
-import { AdjustmentDialog, StatementDialog } from './DebtRecordDialogs'
+import { useOptionalQuickEntry } from '@/app/providers/quick-entry-context'
+import { ReconcileDialog } from '@/features/accounts/components/ReconcileDialog'
+import { AdjustmentDialog, DrawdownDialog, StatementDialog } from './DebtRecordDialogs'
 import { PayDebtSheet, type PayTarget } from './PayDebtSheet'
+
+type DetailDialog = 'adjust' | 'statement' | 'drawdown' | 'reconcile'
 
 /** How many scheduled occurrences the detail lists (newest first). */
 export const OCCURRENCE_LIMIT = 12
@@ -84,7 +88,7 @@ type LoadResult = { ok: true; detail: DebtDetail | null } | { ok: false } | null
 export function DebtDetailSheet({ debtId, onClose, onEdit, today, ops, load = loadDebtDetail }: DebtDetailSheetProps) {
   const toast = useToast()
   const [paying, setPaying] = useState<PayTarget | null>(null)
-  const [dialog, setDialog] = useState<null | 'archive' | 'adjust' | 'statement'>(null)
+  const [dialog, setDialog] = useState<null | 'archive' | DetailDialog>(null)
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
   const [attempt, setAttempt] = useState(0)
@@ -169,6 +173,16 @@ export function DebtDetailSheet({ debtId, onClose, onEdit, today, ops, load = lo
       {detail && <PayDebtSheet target={paying} detail={detail} today={today} onClose={() => setPaying(null)} ops={ops} />}
       {debt && !card && <AdjustmentDialog debt={debt} open={dialog === 'adjust'} onClose={() => setDialog(null)} today={today} ops={ops} />}
       {debt && card && <StatementDialog debt={debt} open={dialog === 'statement'} onClose={() => setDialog(null)} today={today} ops={ops} />}
+      {debt && !card && detail && <DrawdownDialog debt={debt} accounts={detail.accounts} open={dialog === 'drawdown'} onClose={() => setDialog(null)} today={today} ops={ops} />}
+      {debt && card && detail && (
+        <ReconcileDialog
+          account={dialog === 'reconcile' ? (detail.accounts.find((a) => a.id === debt.linkedAccountId && !a.archivedAt) ?? null) : null}
+          balance={negate(detail.position.outstanding ?? ZERO)}
+          liability
+          onClose={() => setDialog(null)}
+          reconcile={ops.reconcileCard}
+        />
+      )}
 
       {debt && (
         <Dialog
@@ -222,11 +236,13 @@ function DetailBody({
   busy: boolean
   next?: ScheduledPayment
   onPay: (target: PayTarget) => void
-  onDialog: (dialog: 'adjust' | 'statement') => void
+  onDialog: (dialog: DetailDialog) => void
   run: (action: () => Promise<unknown>, success: string) => Promise<void>
   ops: DebtsOps
 }) {
   const { debt, position } = detail
+  const quickEntry = useOptionalQuickEntry()
+  const cardAccount = isRevolving(debt) ? detail.accounts.find((a) => a.id === debt.linkedAccountId && !a.archivedAt) : undefined
   const card = isRevolving(debt)
   const loan = position.model === 'loan' ? position.loan : null
   const progress = loan ? loanProgress(loan) : null
@@ -286,6 +302,21 @@ function DetailBody({
           </SecondaryButton>
         )}
       </div>
+
+      {cardAccount && (
+        <div className={quickEntry ? 'grid grid-cols-2 gap-stack' : 'grid gap-stack'}>
+          {quickEntry && (
+            <SecondaryButton size="lg" disabled={busy || debt.status !== 'active'} onClick={() => quickEntry.openTransfer(cardAccount.id)}>
+              <HandCoins aria-hidden="true" />
+              {t('accounts.action.cashAdvance')}
+            </SecondaryButton>
+          )}
+          <SecondaryButton size="lg" disabled={busy} onClick={() => onDialog('reconcile')}>
+            <Scale aria-hidden="true" />
+            {t('accounts.reconcile.actionCard')}
+          </SecondaryButton>
+        </div>
+      )}
 
       <dl className="divide-y divide-border border-y">
         {loan && (
@@ -461,12 +492,39 @@ function DetailBody({
         <Section
           title={t('debts.detail.adjustments')}
           action={
-            <SecondaryButton onClick={() => onDialog('adjust')} disabled={busy}>
-              <Plus aria-hidden="true" />
-              {t('debts.action.addAdjustment')}
-            </SecondaryButton>
+            <div className="flex flex-wrap justify-end gap-2">
+              <SecondaryButton onClick={() => onDialog('drawdown')} disabled={busy || debt.status !== 'active'}>
+                <HandCoins aria-hidden="true" />
+                {t('debts.action.drawdown')}
+              </SecondaryButton>
+              <SecondaryButton onClick={() => onDialog('adjust')} disabled={busy}>
+                <Plus aria-hidden="true" />
+                {t('debts.action.addAdjustment')}
+              </SecondaryButton>
+            </div>
           }
         >
+          {detail.drawdowns.length > 0 && (
+            <ul aria-label={t('debts.detail.drawdowns')} className="divide-y divide-border">
+              {detail.drawdowns.map((tx) => (
+                <li key={tx.id}>
+                  <Link
+                    to={`/transactions?tx=${tx.id}`}
+                    className="focus-ring flex min-h-touch items-center justify-between gap-3 rounded-md py-2.5 text-sm hover:bg-muted/60"
+                  >
+                    <span className="flex min-w-0 flex-col">
+                      <span>{formatDate(tx.date)}</span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {t('debts.detail.drawdownInto', { account: detail.accounts.find((a) => a.id === tx.accountId)?.name ?? '—' })}
+                        {tx.note ? ` · ${tx.note}` : ''}
+                      </span>
+                    </span>
+                    <span className="tabular-nums">{`+${money(tx.amountSatang)}`}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
           {(debt.principalAdjustments ?? []).length > 0 && (
             <ul className="divide-y divide-border">
               {[...(debt.principalAdjustments ?? [])]

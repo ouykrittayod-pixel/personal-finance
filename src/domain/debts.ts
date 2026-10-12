@@ -4,10 +4,14 @@
  * LOANS (every kind except credit_card) — amortizing debts tracked by principal:
  *   outstanding principal(asOf) = openingBalance (at openingDate)
  *                               + Σ principal adjustments (openingDate ≤ date ≤ asOf)
+ *                               + Σ drawdowns (openingDate ≤ date ≤ asOf)
  *                               − Σ allocated principal of debt payments (openingDate ≤ date ≤ asOf)
  *   Interest and fees are borrowing costs, reported separately, never principal.
  *   A payment without an explicit allocation is "unallocated": it moved money
  *   (the paying account is debited) but never reduces principal.
+ *   A drawdown ("รับเงินกู้เพิ่ม") is ONE transaction — an adjustment with the
+ *   debt's id: the receiving account goes up and so does the principal. Never
+ *   income; deleting it undoes both.
  *
  * CREDIT CARDS — revolving: the liability is the linked credit-card account's
  *   balance (purchases, refunds, adjustments, payments). There is no second
@@ -33,7 +37,7 @@ import type {
 import type { ScheduleSource } from './scheduling'
 import { add, negate, subtract, sum, ZERO, type BasisPoints, type Satang } from './money'
 import { isValidDate, type RecurrenceRule } from './recurrence'
-import { accountEffects } from './transactions'
+import { accountClassOf, accountEffects } from './transactions'
 
 export const REVOLVING_KINDS: ReadonlySet<DebtKind> = new Set(['credit_card'])
 
@@ -59,6 +63,10 @@ export function allocationOf(tx: Pick<Transaction, 'principalSatang' | 'interest
 const paymentsFor = (debtId: ID, transactions: readonly Transaction[]) =>
   transactions.filter((tx) => tx.type === 'debt_payment' && tx.debtId === debtId)
 
+/** Loan drawdowns: borrowed money paid into one of your accounts (adjustment transactions carrying the debt's id). */
+export const drawdownsFor = (debtId: ID, transactions: readonly Transaction[]): Transaction[] =>
+  transactions.filter((tx) => tx.type === 'adjustment' && tx.debtId === debtId)
+
 // ---------------------------------------------------------------------------
 // Loan position
 // ---------------------------------------------------------------------------
@@ -81,7 +89,12 @@ export interface LoanPosition {
 /** Loan principal position as of a date (default: all history). */
 export function loanPosition(debt: Debt, transactions: readonly Transaction[], asOf?: ISODate): LoanPosition {
   const inWindow = (date: ISODate) => date >= debt.openingDate && (asOf === undefined || date <= asOf)
-  const adjustments = sum((debt.principalAdjustments ?? []).filter((a) => inWindow(a.date)).map((a) => a.amountSatang))
+  const adjustments = sum([
+    ...(debt.principalAdjustments ?? []).filter((a) => inWindow(a.date)).map((a) => a.amountSatang),
+    ...drawdownsFor(debt.id, transactions)
+      .filter((tx) => inWindow(tx.date))
+      .map((tx) => tx.amountSatang),
+  ])
   let principalPaid = ZERO
   let interestPaid = ZERO
   let feesPaid = ZERO
@@ -131,6 +144,9 @@ export function validateLoanTimeline(
   type Event = { date: ISODate; delta: Satang; order: number }
   const events: Event[] = [
     ...(debt.principalAdjustments ?? []).filter((a) => a.date >= debt.openingDate).map((a) => ({ date: a.date, delta: a.amountSatang, order: a.amountSatang >= 0 ? 0 : 1 })),
+    ...drawdownsFor(debt.id, transactions)
+      .filter((tx) => tx.date >= debt.openingDate)
+      .map((tx) => ({ date: tx.date, delta: tx.amountSatang, order: 0 })),
     ...paymentsFor(debt.id, transactions)
       .filter((tx) => tx.date >= debt.openingDate)
       .flatMap((tx) => {
@@ -424,6 +440,44 @@ export function addPrincipalAdjustment(
   }
   if (!validateLoanTimeline(next, transactions).ok) return { ok: false, issues: ['opening_below_repaid'] }
   return { ok: true, debt: next }
+}
+
+export type DrawdownIssue = AdjustmentIssue | 'drawdown_account_invalid'
+
+/**
+ * "รับเงินกู้เพิ่ม": borrowed money paid into one of your accounts — ONE
+ * adjustment transaction carrying the debt's id (the account goes up, so does
+ * the loan's principal; never income).
+ */
+export function buildDrawdown(
+  debt: Debt,
+  account: Pick<Account, 'id' | 'kind' | 'archivedAt'> | undefined,
+  draft: { amountSatang: Satang; date: ISODate; note?: string },
+  meta: { id: ID; now: string },
+): { ok: true; transaction: Transaction } | { ok: false; issues: DrawdownIssue[] } {
+  if (isRevolving(debt)) return { ok: false, issues: ['not_a_loan'] }
+  const issues: DrawdownIssue[] = []
+  if (!Number.isSafeInteger(draft.amountSatang) || draft.amountSatang <= 0) issues.push('adjustment_invalid')
+  if (!isValidDate(draft.date)) issues.push('adjustment_date_invalid')
+  else if (draft.date < debt.openingDate) issues.push('adjustment_before_opening')
+  if (!account || account.archivedAt || accountClassOf(account.kind) !== 'asset') issues.push('drawdown_account_invalid')
+  if (issues.length > 0) return { ok: false, issues }
+  const note = draft.note?.trim()
+  return {
+    ok: true,
+    transaction: {
+      id: meta.id,
+      type: 'adjustment',
+      date: draft.date,
+      amountSatang: draft.amountSatang,
+      accountId: account!.id,
+      debtId: debt.id,
+      description: `รับเงินกู้เพิ่ม: ${debt.name}`,
+      ...(note ? { note } : {}),
+      createdAt: meta.now,
+      updatedAt: meta.now,
+    },
+  }
 }
 
 export type StatementIssue = 'not_a_card' | 'statement_date_invalid' | 'due_date_invalid' | 'due_before_statement' | 'balance_invalid' | 'minimum_invalid' | 'schedule_owned_by_obligation'

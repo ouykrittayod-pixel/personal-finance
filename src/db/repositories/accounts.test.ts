@@ -171,10 +171,19 @@ describe('transfers', () => {
     await expect(transactions.update('t3', transfer({ toAccountId: 'scb' }), { add: [], remove: [] }, { now, newId })).rejects.toBeInstanceOf(ExpenseValidationError)
   })
 
-  it('never moves money into or out of a credit card (purchases and card payments keep their own rules)', async () => {
+  it('never moves money into a credit card (that is a card payment)', async () => {
     await expect(transactions.create(transfer({ toAccountId: 'card' }), [], { id: 't1', ...meta })).rejects.toMatchObject({ issues: ['transfer_liability_not_allowed'] })
-    await expect(transactions.create(transfer({ accountId: 'card' }), [], { id: 't2', ...meta })).rejects.toMatchObject({ issues: ['transfer_liability_not_allowed'] })
     expect(await database.transactions.count()).toBe(0)
+  })
+
+  it('a cash advance out of a credit line raises what is owed and the account — neither income nor spending', async () => {
+    const before = await state()
+    await transactions.create(transfer({ accountId: 'card', toAccountId: 'kbank', amountSatang: baht(3_000) }), [], { id: 'adv', ...meta })
+    const after = await state()
+    expect(after.balances.get('card')).toBe(before.balances.get('card')! - baht(3_000))
+    expect(after.balances.get('kbank')).toBe(before.balances.get('kbank')! + baht(3_000))
+    expect(after.cardOwed).toBe(before.cardOwed + baht(3_000))
+    expect(after.totals).toEqual(before.totals)
   })
 })
 

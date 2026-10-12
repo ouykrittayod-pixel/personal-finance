@@ -1,5 +1,5 @@
 import type { Attachment, AttachmentBlob, Debt, ID, ISODate, Transaction } from '@/domain/entities'
-import type { Satang } from '@/domain/money'
+import { negate, type Satang } from '@/domain/money'
 import { accountBalances } from '@/domain/reporting'
 import { isRevolving, validateLoanTimeline } from '@/domain/debts'
 import { buildTransaction, latestExpenseDate, type DraftIssue, type ExpenseDraft, type TransactionDraft } from '@/domain/transactions'
@@ -60,7 +60,21 @@ function rethrow(error: unknown): never {
   throw toStorageError(cause)
 }
 
+/** The lender's interest and fees found when updating a credit line from the lender's app. */
+export const CHARGES_CATEGORY_NAME = 'ดอกเบี้ย/ค่าธรรมเนียม'
+const CHARGES_DESCRIPTION = 'ดอกเบี้ย/ค่าธรรมเนียมตามแอปเจ้าหนี้'
+
 export function createTransactionsRepository(database: FinanceDatabase) {
+  /** The open expense category for interest / fees (any name with "ดอกเบี้ย"), created if there is none. */
+  async function chargesCategory(newCategoryId: ID, now: string): Promise<ID> {
+    const categories = await database.categories.toArray()
+    const found = categories.find((c) => c.kind === 'expense' && !c.archivedAt && c.name.includes('ดอกเบี้ย'))
+    if (found) return found.id
+    const sortOrder = categories.filter((c) => c.kind === 'expense').reduce((max, c) => Math.max(max, c.sortOrder + 1), 0)
+    await database.categories.add({ id: newCategoryId, kind: 'expense', name: CHARGES_CATEGORY_NAME, icon: '💸', sortOrder, createdAt: now, updatedAt: now })
+    return newCategoryId
+  }
+
   const writeTables = [
     database.transactions,
     database.attachments,
@@ -256,10 +270,25 @@ export function createTransactionsRepository(database: FinanceDatabase) {
      * spending, budgets and reports are unchanged. Returns null when the
      * balance already matches. Idempotent on `meta.id`.
      */
-    async reconcileBalance(accountId: ID, actualSatang: Satang, meta: { id: ID; now: string; date: ISODate; note?: string }): Promise<Transaction | null> {
+    async reconcileBalance(
+      accountId: ID,
+      actualSatang: Satang,
+      meta: {
+        id: ID
+        now: string
+        date: ISODate
+        note?: string
+        /**
+         * Credit lines: when the lender shows more owed than the app, the
+         * difference is the lender's interest / fees — recorded as one expense
+         * in the "ดอกเบี้ย/ค่าธรรมเนียม" category (created with this id if missing).
+         */
+        chargesAsExpense?: { newCategoryId: ID }
+      },
+    ): Promise<Transaction | null> {
       if (!Number.isSafeInteger(actualSatang)) throw new ExpenseValidationError(['amount_not_integer'])
       try {
-        return await database.transaction('rw', [database.accounts, database.transactions], async () => {
+        return await database.transaction('rw', [database.accounts, database.transactions, database.categories], async () => {
           const stored = await database.transactions.get(meta.id)
           if (stored) return stored
           const account = await database.accounts.get(accountId)
@@ -271,6 +300,23 @@ export function createTransactionsRepository(database: FinanceDatabase) {
           const current = accountBalances([account], [...from, ...to]).get(accountId) ?? account.openingBalanceSatang
           const difference = (actualSatang - current) as Satang
           if (difference === 0) return null
+          if (meta.chargesAsExpense && difference < 0 && account.kind === 'credit_card') {
+            const categoryId = await chargesCategory(meta.chargesAsExpense.newCategoryId, meta.now)
+            const charges: Transaction = {
+              id: meta.id,
+              type: 'expense',
+              date: meta.date,
+              amountSatang: negate(difference),
+              accountId,
+              categoryId,
+              description: CHARGES_DESCRIPTION,
+              ...(meta.note?.trim() ? { note: meta.note.trim() } : {}),
+              createdAt: meta.now,
+              updatedAt: meta.now,
+            }
+            await database.transactions.add(charges)
+            return charges
+          }
           const adjustment: Transaction = {
             id: meta.id,
             type: 'adjustment',

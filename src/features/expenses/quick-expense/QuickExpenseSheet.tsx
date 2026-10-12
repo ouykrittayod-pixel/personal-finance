@@ -74,7 +74,9 @@ export function QuickExpenseSheet({
 
   const ready = result?.ok ? result.data : null
   const transferAccounts = ready ? ready.accounts.filter((a) => accountClassOf(a.kind) === 'asset') : []
-  const showForm = ready !== null && (transfer ? transferAccounts.length >= 2 : ready.categories.length > 0 && ready.accounts.length > 0)
+  // Opened from a credit line: a cash advance into one of your accounts.
+  const cashAdvance = transfer && ready !== null && ready.accounts.some((a) => a.id === defaultAccountId && a.kind === 'credit_card')
+  const showForm = ready !== null && (transfer ? transferAccounts.length >= (cashAdvance ? 1 : 2) : ready.categories.length > 0 && ready.accounts.length > 0)
 
   return (
     <Drawer
@@ -82,8 +84,8 @@ export function QuickExpenseSheet({
       onOpenChange={(next) => {
         if (!saving) onOpenChange(next)
       }}
-      title={t(transfer ? 'transfer.title' : income ? 'income.sheetTitle' : 'expense.title')}
-      description={transfer ? t('transfer.hint') : undefined}
+      title={t(cashAdvance ? 'transfer.cashAdvanceTitle' : transfer ? 'transfer.title' : income ? 'income.sheetTitle' : 'expense.title')}
+      description={cashAdvance ? t('transfer.cashAdvanceHint') : transfer ? t('transfer.hint') : undefined}
       size="full"
       onOpenAutoFocus={(event) => {
         // Straight to the amount (opens the numeric keypad on phones) when the form is ready.
@@ -96,7 +98,7 @@ export function QuickExpenseSheet({
       footer={
         showForm ? (
           <PrimaryButton type="submit" form={formId} size="lg" loading={saving}>
-            {t(transfer ? 'transfer.save' : income ? 'income.save' : 'expense.save')}
+            {t(cashAdvance ? 'transfer.cashAdvanceSave' : transfer ? 'transfer.save' : income ? 'income.save' : 'expense.save')}
           </PrimaryButton>
         ) : undefined
       }

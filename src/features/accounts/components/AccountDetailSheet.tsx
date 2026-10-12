@@ -1,5 +1,5 @@
 import { createElement, useRef, useState, type ReactNode } from 'react'
-import { Archive, ArchiveRestore, ArrowLeftRight, Pencil, Scale, SearchX } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeftRight, Banknote, Pencil, Scale, SearchX } from 'lucide-react'
 import { PrimaryButton, SecondaryButton } from '@/components/actions/buttons'
 import { EmptyState } from '@/components/feedback/EmptyState'
 import { LoadingState } from '@/components/feedback/LoadingState'
@@ -92,6 +92,7 @@ export function AccountDetailSheet({ detail, loading = false, accountId, onClose
   const account = detail?.account
   const card = account?.kind === 'credit_card'
   const canTransfer = Boolean(account && !account.archivedAt && !detail?.liability)
+  const canCashAdvance = Boolean(account && !account.archivedAt && account.kind === 'credit_card')
 
   return (
     <>
@@ -113,6 +114,12 @@ export function AccountDetailSheet({ detail, loading = false, accountId, onClose
                 <SecondaryButton size="lg" onClick={() => onTransfer(account.id)} disabled={busy}>
                   <ArrowLeftRight aria-hidden="true" />
                   {t('accounts.action.transferFrom')}
+                </SecondaryButton>
+              )}
+              {canCashAdvance && (
+                <SecondaryButton size="lg" onClick={() => onTransfer(account.id)} disabled={busy}>
+                  <Banknote aria-hidden="true" />
+                  {t('accounts.action.cashAdvance')}
                 </SecondaryButton>
               )}
               {account.archivedAt ? (
@@ -152,7 +159,7 @@ export function AccountDetailSheet({ detail, loading = false, accountId, onClose
               {!account.archivedAt && (
                 <SecondaryButton className="mt-2 self-start" onClick={() => setReconciling(true)} disabled={busy}>
                   <Scale aria-hidden="true" />
-                  {t(account.kind === 'investment' ? 'accounts.reconcile.actionValue' : 'accounts.reconcile.action')}
+                  {t(account.kind === 'investment' ? 'accounts.reconcile.actionValue' : account.kind === 'credit_card' ? 'accounts.reconcile.actionCard' : 'accounts.reconcile.action')}
                 </SecondaryButton>
               )}
             </div>
@@ -173,9 +180,10 @@ export function AccountDetailSheet({ detail, loading = false, accountId, onClose
               <dl className="grid grid-cols-2 gap-stack sm:grid-cols-3">
                 {card ? (
                   <>
-                    {/* A card has no "income" or transfers: purchases raise what is owed, payments lower it. */}
+                    {/* A card has no "income": purchases and cash advances raise what is owed, payments lower it. */}
                     <Total label={t('accounts.detail.cardPurchases')} amount={detail.activity.expensesOut} />
                     <Total label={t('accounts.detail.cardPayments')} amount={detail.activity.debtPaymentsIn} />
+                    {detail.activity.transfersOut !== 0 && <Total label={t('accounts.detail.cashAdvances')} amount={detail.activity.transfersOut} />}
                   </>
                 ) : (
                   <>

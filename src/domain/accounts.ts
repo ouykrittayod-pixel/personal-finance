@@ -123,17 +123,7 @@ export function transactionsForAccount(accountId: ID, transactions: readonly Tra
 // Transfers
 // ---------------------------------------------------------------------------
 
-export type TransferIssue = 'transfer_liability_not_allowed'
-
-/**
- * Transfer rule beyond the generic transaction checks (source/destination
- * required, different, existing, active, amount > 0): both sides must be asset
- * accounts. Returns [] when allowed.
- */
-export function validateTransferAccounts(from: Pick<Account, 'kind'> | undefined, to: Pick<Account, 'kind'> | undefined): TransferIssue[] {
-  if ((from && accountClassOf(from.kind) === 'liability') || (to && accountClassOf(to.kind) === 'liability')) return ['transfer_liability_not_allowed']
-  return []
-}
+export { isCashAdvance, validateTransferAccounts, type TransferIssue } from './transactions'
 
 /** The balance change a transfer causes: −amount on the source, +amount on the destination. Total unchanged. */
 export const calculateTransferEffect = (tx: Pick<Transaction, 'amountSatang' | 'accountId' | 'toAccountId'>): AccountEffect[] =>
