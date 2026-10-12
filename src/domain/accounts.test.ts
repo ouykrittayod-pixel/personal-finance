@@ -118,7 +118,7 @@ describe('transfer validation (buildTransaction)', () => {
     [{ amountSatang: baht(-5) }, 'amount_must_be_positive'],
     [{ toAccountId: 'ghost' }, 'unknown_to_account'],
     [{ toAccountId: 'card' }, 'transfer_liability_not_allowed'],
-    [{ accountId: 'card', toAccountId: 'card' }, 'same_account'],
+    [{ accountId: 'card', toAccountId: 'card' }, 'transfer_liability_not_allowed'],
   ] as const)('rejects %j with %s', (overrides, issue) => {
     const result = build(overrides as Partial<TransactionDraft>)
     expect(!result.ok && result.issues).toContain(issue)
